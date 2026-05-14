@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Kernel1AnalysisResult",
+  "type": "object",
+  "required": ["case_id", "status", "candidates", "report"],
+  "properties": {
+    "case_id": {"type": "string"},
+    "status": {"enum": ["certain", "uncertain", "rejected"]},
+    "type": {"type": ["string", "null"]},
+    "alias": {"type": ["string", "null"]},
+    "quadra": {"type": ["string", "null"]},
+    "confidence": {"type": "number"},
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "score"],
+        "properties": {
+          "type": {"type": "string"},
+          "score": {"type": "number"}
+        }
+      }
+    },
+    "model_a": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "evidence_chain": {"type": "array"},
+    "conflicts": {"type": "array"},
+    "insufficiency": {"type": "array"},
+    "report": {"type": "string"}
+  }
+}
+

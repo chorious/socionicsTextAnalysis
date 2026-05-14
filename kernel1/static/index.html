@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shiro Kernel1</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fa;
+      --panel: #ffffff;
+      --text: #1d2430;
+      --muted: #667085;
+      --line: #d9e0ea;
+      --accent: #0f766e;
+      --accent-dark: #115e59;
+      --danger: #b42318;
+      --code: #101828;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      letter-spacing: 0;
+    }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .topbar {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: var(--accent);
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .status {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    main {
+      max-width: 1280px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 18px 20px 28px;
+      display: grid;
+      grid-template-columns: minmax(360px, 440px) minmax(0, 1fr);
+      gap: 18px;
+    }
+
+    section {
+      min-width: 0;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .panel-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    h1, h2 {
+      margin: 0;
+      line-height: 1.2;
+    }
+
+    h1 { font-size: 18px; }
+    h2 { font-size: 15px; }
+
+    .form {
+      padding: 14px 16px 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-size: 14px;
+      outline: none;
+    }
+
+    input {
+      height: 38px;
+      padding: 0 10px;
+    }
+
+    textarea {
+      min-height: 330px;
+      resize: vertical;
+      padding: 10px;
+      line-height: 1.55;
+    }
+
+    input:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 96px;
+      gap: 10px;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .toggle input {
+      width: 18px;
+      height: 18px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      height: 38px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      padding: 0 14px;
+      font: inherit;
+      font-size: 14px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    button.primary:hover { background: var(--accent-dark); }
+    button.secondary {
+      background: #fff;
+      color: var(--text);
+      border-color: var(--line);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .metric {
+      min-height: 58px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px 10px;
+      background: #fff;
+    }
+
+    .metric.wide {
+      grid-column: 1 / -1;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+
+    .metric strong {
+      font-size: 15px;
+      overflow-wrap: anywhere;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 6px;
+      padding: 10px 16px 0;
+    }
+
+    .tab {
+      height: 32px;
+      border-color: var(--line);
+      background: #fff;
+    }
+
+    .tab.active {
+      color: #fff;
+      background: var(--code);
+      border-color: var(--code);
+    }
+
+    .result {
+      padding: 14px 16px 18px;
+      min-height: 520px;
+    }
+
+    .report {
+      white-space: pre-wrap;
+      line-height: 1.7;
+      font-size: 14px;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--code);
+    }
+
+    .hidden { display: none; }
+
+    .error {
+      color: var(--danger);
+      line-height: 1.6;
+    }
+
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+      .meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .topbar { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="topbar">
+        <div class="brand"><div class="mark">S</div><h1>Shiro Kernel1</h1></div>
+        <div class="status" id="serverStatus">检查服务中</div>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel">
+        <div class="panel-header">
+          <h2>输入</h2>
+          <span class="status" id="charCount">0 字</span>
+        </div>
+        <div class="form">
+          <label class="toggle">
+            使用本地 LLM
+            <input id="llmEnabled" type="checkbox">
+          </label>
+
+          <label>
+            LLM 监听地址
+            <input id="llmBaseUrl" value="http://127.0.0.1:8000/v1/chat/completions" spellcheck="false">
+          </label>
+
+          <div class="row">
+            <label>
+              模型名
+              <input id="llmModel" value="qwen3.6-27b" spellcheck="false">
+            </label>
+            <label>
+              超时秒数
+              <input id="llmTimeout" type="number" min="10" max="600" value="90">
+            </label>
+          </div>
+
+          <label>
+            最大输出 token
+            <input id="llmMaxTokens" type="number" min="512" max="16000" value="4096">
+          </label>
+
+          <label>
+            API Key
+            <input id="llmApiKey" value="EMPTY" spellcheck="false">
+          </label>
+
+          <label>
+            文章 / 自述文本
+            <textarea id="articleText" placeholder="把 3-5k 字文本粘到这里。第一版会返回候选类型、证据链、判型状态和报告。"></textarea>
+          </label>
+
+          <label>
+            可编辑 Q/A JSON
+            <textarea id="qaJson" placeholder="点击“转换为 Q/A JSON”后在这里手动调整。分析时会优先使用这里的 question/answer 数组，只把 answer 送入 Kernel。"></textarea>
+          </label>
+
+          <div class="actions">
+            <button class="secondary" id="parseQaBtn">转换为 Q/A JSON</button>
+            <button class="primary" id="analyzeBtn">分析</button>
+            <button class="secondary" id="sampleBtn">填入样例</button>
+            <button class="secondary" id="clearBtn">清空</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>结果</h2>
+          <span class="status" id="runStatus">等待输入</span>
+        </div>
+        <div class="meta">
+          <div class="metric"><span>判型状态</span><strong id="mStatus">-</strong></div>
+          <div class="metric"><span>候选第一</span><strong id="mTop">-</strong></div>
+          <div class="metric"><span>置信度</span><strong id="mConfidence">-</strong></div>
+          <div class="metric"><span>证据来源</span><strong id="mSource">-</strong></div>
+          <div class="metric wide"><span>LLM 状态</span><strong id="mLlm">-</strong></div>
+        </div>
+        <div class="tabs">
+          <button class="tab active" id="reportTab">报告</button>
+          <button class="tab" id="jsonTab">JSON</button>
+        </div>
+        <div class="result">
+          <div id="reportView" class="report">提交文本后，这里会显示判型报告。</div>
+          <pre id="jsonView" class="hidden"></pre>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const settingsKey = "shiroKernel1Settings";
+    const sampleText = `我经常会先观察一个事情未来可能怎么变化，而不是马上下结论。比起把当下的细节都处理好，我更在意这个方向后面会不会走歪。
+
+跟人合作时，我会主动拆流程、看效率和投入产出。如果一个方案讲得很漂亮但没有执行路径，我会很不耐烦。
+
+我不太擅长判断别人和我之间的私人距离。有时候别人觉得已经很亲近了，我还在用比较客观的方式处理关系；有时候我也会突然担心自己是不是冒犯了别人。
+
+遇到情绪氛围很强的场合，我通常能配合，但不会觉得那是我最自然的表达方式。我更习惯把问题拆成目标、资源、风险和下一步。`;
+
+    function updateCount() {
+      $("charCount").textContent = `${$("articleText").value.length} 字`;
+    }
+
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem(settingsKey);
+        if (!raw) return;
+        const settings = JSON.parse(raw);
+        $("llmEnabled").checked = Boolean(settings.llmEnabled);
+        $("llmBaseUrl").value = settings.llmBaseUrl || $("llmBaseUrl").value;
+        $("llmModel").value = settings.llmModel || $("llmModel").value;
+        $("llmTimeout").value = settings.llmTimeout || $("llmTimeout").value;
+        $("llmMaxTokens").value = settings.llmMaxTokens || $("llmMaxTokens").value;
+        $("llmApiKey").value = settings.llmApiKey ?? $("llmApiKey").value;
+      } catch {
+        localStorage.removeItem(settingsKey);
+      }
+    }
+
+    function saveSettings() {
+      const settings = {
+        llmEnabled: $("llmEnabled").checked,
+        llmBaseUrl: $("llmBaseUrl").value.trim(),
+        llmModel: $("llmModel").value.trim(),
+        llmTimeout: Number($("llmTimeout").value || 90),
+        llmMaxTokens: Number($("llmMaxTokens").value || 4096),
+        llmApiKey: $("llmApiKey").value
+      };
+      localStorage.setItem(settingsKey, JSON.stringify(settings));
+    }
+
+    function setTab(name) {
+      const report = name === "report";
+      $("reportTab").classList.toggle("active", report);
+      $("jsonTab").classList.toggle("active", !report);
+      $("reportView").classList.toggle("hidden", !report);
+      $("jsonView").classList.toggle("hidden", report);
+    }
+
+    function setMetrics(data) {
+      const top = data.candidates && data.candidates[0];
+      $("mStatus").textContent = data.status || "-";
+      $("mTop").textContent = top ? `${top.type} (${top.score})` : "-";
+      $("mConfidence").textContent = data.confidence ?? "-";
+      $("mSource").textContent = data.extraction_source || "-";
+      const raw = data.llm_raw_path ? `；原始回复：${data.llm_raw_path}` : "";
+      $("mLlm").textContent = data.llm_error ? `失败：${data.llm_error}${raw}` : (data.extraction_source === "llm" ? "已使用本地 LLM" : "-");
+    }
+
+    async function checkHealth() {
+      try {
+        const res = await fetch("/health");
+        const data = await res.json();
+        $("serverStatus").textContent = data.status === "ok" ? "服务正常" : "服务异常";
+      } catch {
+        $("serverStatus").textContent = "服务未连接";
+      }
+    }
+
+    async function analyze() {
+      const text = $("articleText").value.trim();
+      let qaItems = null;
+      try {
+        qaItems = readQaItems();
+      } catch (err) {
+        $("reportView").innerHTML = `<span class="error">${String(err.message || err)}</span>`;
+        setTab("report");
+        return;
+      }
+      if (!text && !qaItems) {
+        $("reportView").innerHTML = '<span class="error">请先输入文章文本，或填写可编辑 Q/A JSON。</span>';
+        setTab("report");
+        return;
+      }
+
+      $("analyzeBtn").disabled = true;
+      $("runStatus").textContent = "分析中";
+      $("reportView").textContent = "正在分析，请稍候。";
+      $("jsonView").textContent = "";
+      setTab("report");
+
+      const payload = {
+        case_id: `web-${Date.now()}`,
+        text: text || "edited qa input",
+        qa_items: qaItems,
+        llm_enabled: $("llmEnabled").checked,
+        llm_base_url: $("llmBaseUrl").value.trim(),
+        llm_model: $("llmModel").value.trim(),
+        llm_api_key: $("llmApiKey").value,
+        llm_timeout: Number($("llmTimeout").value || 90),
+        llm_max_tokens: Number($("llmMaxTokens").value || 4096)
+      };
+      saveSettings();
+
+      try {
+        const res = await fetch("/kernel1/analyze", {
+          method: "POST",
+          headers: {"Content-Type": "application/json; charset=utf-8"},
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(JSON.stringify(data));
+        setMetrics(data);
+        $("reportView").textContent = data.report || "没有报告内容。";
+        $("jsonView").textContent = JSON.stringify(data, null, 2);
+        $("runStatus").textContent = "完成";
+      } catch (err) {
+        $("runStatus").textContent = "失败";
+        $("reportView").innerHTML = `<span class="error">${String(err.message || err)}</span>`;
+      } finally {
+        $("analyzeBtn").disabled = false;
+      }
+    }
+
+    function readQaItems() {
+      const raw = $("qaJson").value.trim();
+      if (!raw) return null;
+      try {
+        const parsed = JSON.parse(raw);
+        const items = Array.isArray(parsed) ? parsed : parsed.qa_items;
+        if (!Array.isArray(items)) throw new Error("Q/A JSON 必须是数组，或包含 qa_items 数组。");
+        const cleaned = items
+          .map((item) => ({
+            question: String(item.question || "").trim(),
+            answer: String(item.answer || "").trim()
+          }))
+          .filter((item) => item.answer);
+        if (!cleaned.length) throw new Error("Q/A JSON 里没有可用 answer。");
+        return cleaned;
+      } catch (err) {
+        throw new Error(`Q/A JSON 解析失败：${err.message || err}`);
+      }
+    }
+
+    async function parseQa() {
+      const text = $("articleText").value.trim();
+      if (!text) {
+        $("reportView").innerHTML = '<span class="error">请先输入文章或问卷文本。</span>';
+        setTab("report");
+        return;
+      }
+      $("parseQaBtn").disabled = true;
+      $("runStatus").textContent = "转换 Q/A 中";
+      try {
+        const res = await fetch("/kernel1/parse-qa", {
+          method: "POST",
+          headers: {"Content-Type": "application/json; charset=utf-8"},
+          body: JSON.stringify({text})
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(JSON.stringify(data));
+        $("qaJson").value = JSON.stringify(data.qa_items || [], null, 2);
+        $("runStatus").textContent = `已转换 ${data.qa_count || 0} 组 Q/A`;
+        $("reportView").textContent = "Q/A JSON 已生成。你可以手动调整后再点击“分析”。";
+      } catch (err) {
+        $("runStatus").textContent = "转换失败";
+        $("reportView").innerHTML = `<span class="error">${String(err.message || err)}</span>`;
+      } finally {
+        $("parseQaBtn").disabled = false;
+      }
+    }
+
+    $("articleText").addEventListener("input", updateCount);
+    ["llmEnabled", "llmBaseUrl", "llmModel", "llmTimeout", "llmMaxTokens", "llmApiKey"].forEach((id) => {
+      $(id).addEventListener("change", saveSettings);
+      $(id).addEventListener("input", saveSettings);
+    });
+    $("analyzeBtn").addEventListener("click", analyze);
+    $("parseQaBtn").addEventListener("click", parseQa);
+    $("sampleBtn").addEventListener("click", () => {
+      $("articleText").value = sampleText;
+      updateCount();
+    });
+    $("clearBtn").addEventListener("click", () => {
+      $("articleText").value = "";
+      $("qaJson").value = "";
+      updateCount();
+      $("reportView").textContent = "提交文本后，这里会显示判型报告。";
+      $("jsonView").textContent = "";
+      $("runStatus").textContent = "等待输入";
+      setMetrics({});
+    });
+    $("reportTab").addEventListener("click", () => setTab("report"));
+    $("jsonTab").addEventListener("click", () => setTab("json"));
+
+    loadSettings();
+    updateCount();
+    checkHealth();
+  </script>
+</body>
+</html>

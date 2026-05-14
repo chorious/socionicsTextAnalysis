@@ -1,0 +1,19 @@
+{
+  "ILE": {"alias": "ENTp", "quadra": "Alpha", "model_a": ["1Ne", "2Ti", "3Se", "4Fi", "5Si", "6Fe", "7Ni", "8Te"]},
+  "LII": {"alias": "INTj", "quadra": "Alpha", "model_a": ["1Ti", "2Ne", "3Fi", "4Se", "5Fe", "6Si", "7Te", "8Ni"]},
+  "ESE": {"alias": "ESFj", "quadra": "Alpha", "model_a": ["1Fe", "2Si", "3Te", "4Ni", "5Ti", "6Ne", "7Fi", "8Se"]},
+  "SEI": {"alias": "ISFp", "quadra": "Alpha", "model_a": ["1Si", "2Fe", "3Ni", "4Te", "5Ne", "6Ti", "7Se", "8Fi"]},
+  "SLE": {"alias": "ESTp", "quadra": "Beta", "model_a": ["1Se", "2Ti", "3Ne", "4Fi", "5Ni", "6Fe", "7Si", "8Te"]},
+  "LSI": {"alias": "ISTj", "quadra": "Beta", "model_a": ["1Ti", "2Se", "3Fi", "4Ne", "5Fe", "6Ni", "7Te", "8Si"]},
+  "EIE": {"alias": "ENFj", "quadra": "Beta", "model_a": ["1Fe", "2Ni", "3Te", "4Si", "5Ti", "6Se", "7Fi", "8Ne"]},
+  "IEI": {"alias": "INFp", "quadra": "Beta", "model_a": ["1Ni", "2Fe", "3Si", "4Te", "5Se", "6Ti", "7Ne", "8Fi"]},
+  "SEE": {"alias": "ESFp", "quadra": "Gamma", "model_a": ["1Se", "2Fi", "3Ne", "4Ti", "5Ni", "6Te", "7Si", "8Fe"]},
+  "ESI": {"alias": "ISFj", "quadra": "Gamma", "model_a": ["1Fi", "2Se", "3Ti", "4Ne", "5Te", "6Ni", "7Fe", "8Si"]},
+  "LIE": {"alias": "ENTj", "quadra": "Gamma", "model_a": ["1Te", "2Ni", "3Fe", "4Si", "5Fi", "6Se", "7Ti", "8Ne"]},
+  "ILI": {"alias": "INTp", "quadra": "Gamma", "model_a": ["1Ni", "2Te", "3Si", "4Fe", "5Se", "6Fi", "7Ne", "8Ti"]},
+  "IEE": {"alias": "ENFp", "quadra": "Delta", "model_a": ["1Ne", "2Fi", "3Se", "4Ti", "5Si", "6Te", "7Ni", "8Fe"]},
+  "EII": {"alias": "INFj", "quadra": "Delta", "model_a": ["1Fi", "2Ne", "3Ti", "4Se", "5Te", "6Si", "7Fe", "8Ni"]},
+  "LSE": {"alias": "ESTj", "quadra": "Delta", "model_a": ["1Te", "2Si", "3Fe", "4Ni", "5Fi", "6Ne", "7Ti", "8Se"]},
+  "SLI": {"alias": "ISTp", "quadra": "Delta", "model_a": ["1Si", "2Te", "3Ni", "4Fe", "5Ne", "6Fi", "7Se", "8Ti"]}
+}
+
