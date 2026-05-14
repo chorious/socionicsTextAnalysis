@@ -1293,7 +1293,7 @@ class Kernel1Analyzer:
         raw_extraction: dict[str, Any],
         prepared: dict[str, Any],
     ) -> dict[str, Any] | None:
-        """阶段 2：把广提取的原始证据池精炼为 8 条核心证据。LLM 负责合并/去重/平衡/维度决策。"""
+        """阶段 2：LLM 输出结构化维度决策表，Python 按决策表重打标签并筛选 8 条核心证据。"""
         prompt_path = BASE_DIR / "prompts" / "evidence_synthesis.md"
         if not prompt_path.exists():
             return None
@@ -1314,38 +1314,95 @@ class Kernel1Analyzer:
         user_prompt = (
             f"【原始证据池（{len(raw_quotes)} 条）】\n{raw_quotes_json}\n\n"
             f"【{text_label}】\n{text_excerpt}\n\n"
-            f"请整合精炼为最多 8 条核心证据，输出 JSON。"
+            f"请为每个元素判定最终维度，输出 JSON。"
         )
 
-        result = self.llm.chat_json(system_prompt, user_prompt)
-        if not isinstance(result, dict) or "quotes" not in result:
+        decision = self.llm.chat_json(system_prompt, user_prompt)
+        if not isinstance(decision, dict) or "element_dimensions" not in decision:
             return None
 
-        synthesized = self._normalize_extraction(result)
-        synthesized["_source"] = "llm_synthesized"
-        synthesized["_raw_quote_count"] = len(raw_quotes)
-        synthesized["_synthesis_notes"] = result.get("synthesis_notes", {})
-        # 保留原始提取的顶层信号（dichotomy/laning/conflicts 合并）
-        synthesized["dichotomy_signals"] = raw_extraction.get("dichotomy_signals", {}) or synthesized.get("dichotomy_signals", {})
-        synthesized["laning_signals"] = raw_extraction.get("laning_signals", {}) or synthesized.get("laning_signals", {})
-        merged_conflicts = self._dedupe_dicts(
-            raw_extraction.get("conflicts", []) + synthesized.get("conflicts", []),
-            key="topic",
-        )
-        synthesized["conflicts"] = merged_conflicts
-        merged_insufficiency = list(set(
-            raw_extraction.get("insufficiency", []) + synthesized.get("insufficiency", [])
-        ))[:5]
-        synthesized["insufficiency"] = merged_insufficiency
-        return synthesized
+        # 用决策表重打标签
+        element_dim_map: dict[str, str] = {}
+        element_dim_rationale: dict[str, str] = {}
+        for elem, info in decision["element_dimensions"].items():
+            if elem in {"Ne", "Ni", "Se", "Si", "Te", "Ti", "Fe", "Fi"} and isinstance(info, dict):
+                dim = info.get("dimension")
+                if dim in {"1D", "2D", "3D", "4D"}:
+                    element_dim_map[elem] = dim
+                    element_dim_rationale[elem] = info.get("rationale", "")
 
-    def _directed_reextract(
+        # 对原始证据池重打 dimension_hint 标签
+        relabeled_quotes: list[dict[str, Any]] = []
+        for q in raw_extraction["quotes"]:
+            elem = q.get("element_hint")
+            if elem in element_dim_map:
+                new_q = dict(q)
+                if new_q.get("dimension_hint") != element_dim_map[elem]:
+                    new_q["_original_dimension"] = new_q.get("dimension_hint")
+                new_q["dimension_hint"] = element_dim_map[elem]
+                relabeled_quotes.append(new_q)
+            else:
+                relabeled_quotes.append(dict(q))
+
+        # 代码侧筛选 8 条
+        final_quotes = self._select_final_quotes(relabeled_quotes, target_count=8)
+
+        return {
+            "quotes": final_quotes,
+            "_source": "llm_synthesized",
+            "_element_dimensions": element_dim_map,
+            "_dimension_rationale": element_dim_rationale,
+            "_synthesis_notes": decision.get("synthesis_notes", ""),
+            "_raw_quote_count": len(raw_quotes),
+            "dichotomy_signals": raw_extraction.get("dichotomy_signals", {}),
+            "laning_signals": raw_extraction.get("laning_signals", {}),
+            "conflicts": raw_extraction.get("conflicts", []),
+            "insufficiency": raw_extraction.get("insufficiency", []),
+        }
+
+    def _select_final_quotes(self, quotes: list[dict[str, Any]], target_count: int = 8) -> list[dict[str, Any]]:
+        """代码侧鱼谪技：按元素分组，IND 命中优先，每组最多 2 条，先凑覆盖再补高分。"""
+        from collections import defaultdict
+        by_element: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for q in quotes:
+            elem = q.get("element_hint", "unknown")
+            by_element[elem].append(q)
+
+        def priority(q: dict[str, Any]) -> float:
+            ind_bonus = 1.5 if str(q.get("indicator", "")).startswith("IND") else 1.0
+            conf = float(q.get("confidence") or 0.5)
+            return ind_bonus * conf
+
+        # 每组内排序，取最多 2 条
+        selected: list[dict[str, Any]] = []
+        leftovers: list[dict[str, Any]] = []
+        for elem, group in by_element.items():
+            sorted_group = sorted(group, key=priority, reverse=True)
+            selected.extend(sorted_group[:2])
+            leftovers.extend(sorted_group[2:])
+
+        # 若超过 target_count，按 priority 截断
+        if len(selected) > target_count:
+            selected.sort(key=priority, reverse=True)
+            return selected[:target_count]
+
+        # 若不足，从 leftovers 补高分
+        if len(selected) < target_count and leftovers:
+            leftovers.sort(key=priority, reverse=True)
+            needed = target_count - len(selected)
+            selected.extend(leftovers[:needed])
+
+        # 最终按 priority 排序（信息密度高的在前）
+        selected.sort(key=priority, reverse=True)
+        return selected
+
+    def _build_l1_request(
         self,
         prepared: dict[str, Any],
         blocking_axis: dict[str, Any],
         existing_extraction: dict[str, Any] | None = None,
-    ) -> dict[str, Any] | None:
-        """L1 定向重提取：带着阻塞轴问题，让 LLM 重扫全文补充缺失元素的证据。"""
+    ) -> tuple[str, str] | None:
+        """构造 L1 定向重提取的 (system_prompt, user_prompt)。"""
         prompt_path = BASE_DIR / "prompts" / "directed_extraction.md"
         if not prompt_path.exists():
             return None
@@ -1368,7 +1425,6 @@ class Kernel1Analyzer:
                 elem = q.get("element_hint", "")
                 dim = q.get("dimension_hint", "")
                 if elem not in {"unknown", None} and dim in {"1D", "2D", "3D", "4D"}:
-                    # 记录该元素最高维度（多条证据时取 lexicographic 最大 = 4D > 3D > 2D > 1D）
                     existing = locked_dims.get(elem, "")
                     if dim > existing:
                         locked_dims[elem] = dim
@@ -1384,14 +1440,9 @@ class Kernel1Analyzer:
         if locked_dims:
             user_prompt += f"\n\n【已锁定的维度判定，不可修改】\n{json.dumps(locked_dims, ensure_ascii=False)}"
 
-        result = self.llm.chat_json(system_prompt, user_prompt)
-        if not self._is_valid_extraction(result):
-            return None
-        result = self._normalize_extraction(result)
-        result["_source"] = "llm_directed"
-        return result
+        return system_prompt, user_prompt
 
-    def _try_directed_reextract(
+    def _apply_directed_reextract(
         self,
         result: dict[str, Any],
         extraction: dict[str, Any],
@@ -1399,30 +1450,31 @@ class Kernel1Analyzer:
         prepared: dict[str, Any],
         case_id: str,
         blocking_axis: dict[str, Any],
+        llm_raw_result: dict[str, Any] | None,
     ) -> dict[str, Any]:
-        """
-        执行 L1 定向重提取，合并证据，重新打分和判型。
-        返回包含内部状态的 dict：{"_result", "_extraction", "_candidates"}。
-        """
-        extra = self._directed_reextract(prepared, blocking_axis, existing_extraction=extraction)
+        """把 L1 LLM 返回的原始结果应用到证据池，合并、去漂移、重新打分。"""
+        if not llm_raw_result or not self._is_valid_extraction(llm_raw_result):
+            return {"_result": result, "_extraction": extraction, "_candidates": candidates}
+        extra = self._normalize_extraction(llm_raw_result)
         if not extra or not extra.get("quotes"):
             return {"_result": result, "_extraction": extraction, "_candidates": candidates}
 
-        # 代码侧防漂移：强制新证据的 dimension_hint 不超过已有元素的最高维度
-        existing_dim_map: dict[str, str] = {}
-        for q in extraction.get("quotes", []):
-            elem = q.get("element_hint", "")
-            dim = q.get("dimension_hint", "")
-            if elem not in {"unknown", None} and dim in {"1D", "2D", "3D", "4D"}:
-                existing = existing_dim_map.get(elem, "")
-                if dim > existing:
-                    existing_dim_map[elem] = dim
+        # 代码侧防漂移：优先用阶段 2 的权威维度决策表，否则取已有 quote 的最高维度
+        element_dim_map: dict[str, str] = dict(extraction.get("_element_dimensions") or {})
+        if not element_dim_map:
+            for q in extraction.get("quotes", []):
+                elem = q.get("element_hint", "")
+                dim = q.get("dimension_hint", "")
+                if elem not in {"unknown", None} and dim in {"1D", "2D", "3D", "4D"}:
+                    existing = element_dim_map.get(elem, "")
+                    if dim > existing:
+                        element_dim_map[elem] = dim
 
         for q in extra.get("quotes", []):
             elem = q.get("element_hint", "")
             new_dim = q.get("dimension_hint", "")
-            if elem in existing_dim_map and new_dim in {"1D", "2D", "3D", "4D"}:
-                locked_dim = existing_dim_map[elem]
+            if elem in element_dim_map and new_dim in {"1D", "2D", "3D", "4D"}:
+                locked_dim = element_dim_map[elem]
                 if new_dim != locked_dim:
                     q["_drift_suppressed"] = new_dim
                     q["dimension_hint"] = locked_dim
@@ -1441,7 +1493,6 @@ class Kernel1Analyzer:
 
         merged_extraction = dict(extraction)
         merged_extraction["quotes"] = extraction.get("quotes", []) + new_quotes
-        # 合并冲突和不足信息（去重）
         merged_extraction["conflicts"] = self._dedupe_dicts(
             extraction.get("conflicts", []) + extra.get("conflicts", []), key="topic"
         )
@@ -1459,6 +1510,36 @@ class Kernel1Analyzer:
             "added_quotes": len(new_quotes),
         }
         return {"_result": new_result, "_extraction": merged_extraction, "_candidates": new_candidates}
+
+    def _directed_reextract(
+        self,
+        prepared: dict[str, Any],
+        blocking_axis: dict[str, Any],
+        existing_extraction: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        """L1 定向重提取的薄包装（build + LLM call）。保留供单测和回归使用。"""
+        req = self._build_l1_request(prepared, blocking_axis, existing_extraction)
+        if not req:
+            return None
+        result = self.llm.chat_json(req[0], req[1])
+        if not self._is_valid_extraction(result):
+            return None
+        result = self._normalize_extraction(result)
+        result["_source"] = "llm_directed"
+        return result
+
+    def _try_directed_reextract(
+        self,
+        result: dict[str, Any],
+        extraction: dict[str, Any],
+        candidates: list[dict[str, Any]],
+        prepared: dict[str, Any],
+        case_id: str,
+        blocking_axis: dict[str, Any],
+    ) -> dict[str, Any]:
+        """L1 定向重提取的薄包装（build + LLM call + apply）。保留供单测和回归使用。"""
+        extra = self._directed_reextract(prepared, blocking_axis, existing_extraction=extraction)
+        return self._apply_directed_reextract(result, extraction, candidates, prepared, case_id, blocking_axis, extra)
 
     def _dedupe_dicts(self, items: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
         """按指定 key 去重 dict 列表。"""
@@ -1520,13 +1601,13 @@ class Kernel1Analyzer:
             "used_signals": used,
         }
 
-    def _synthesis_pass(
+    def _build_l2_request(
         self,
         prepared: dict[str, Any],
         top_candidates: list[dict[str, Any]],
         extraction: dict[str, Any],
-    ) -> dict[str, Any] | None:
-        """L2 综合仲裁：全文喂 LLM 做整体性独立判型，返回 verdict 和 coherence_confidence。"""
+    ) -> tuple[str, str] | None:
+        """构造 L2 综合仲裁的 (system_prompt, user_prompt)。"""
         prompt_path = BASE_DIR / "prompts" / "synthesis_pass.md"
         if not prompt_path.exists():
             return None
@@ -1577,14 +1658,29 @@ class Kernel1Analyzer:
             f"【算法候选类型】\n" + "\n".join(candidate_blocks) +
             "\n\n请从整体上判断这段文字最符合哪个类型，输出 JSON。"
         )
+        return system_prompt, user_prompt
 
-        result = self.llm.chat_json(system_prompt, user_prompt)
-        if not isinstance(result, dict) or "verdict_type" not in result:
+    def _parse_l2_response(self, llm_raw: dict[str, Any] | None) -> dict[str, Any] | None:
+        """解析 L2 综合仲裁的 LLM 返回结果。"""
+        if not isinstance(llm_raw, dict) or "verdict_type" not in llm_raw:
             return None
-        if result["verdict_type"] not in self.model_a:
+        if llm_raw["verdict_type"] not in self.model_a:
             return None
-        result["coherence_confidence"] = self._bounded_float(result.get("coherence_confidence"), 0.0)
-        return result
+        llm_raw["coherence_confidence"] = self._bounded_float(llm_raw.get("coherence_confidence"), 0.0)
+        return llm_raw
+
+    def _synthesis_pass(
+        self,
+        prepared: dict[str, Any],
+        top_candidates: list[dict[str, Any]],
+        extraction: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """L2 综合仲裁的薄包装（build + LLM call + parse）。保留供单测和回归使用。"""
+        req = self._build_l2_request(prepared, top_candidates, extraction)
+        if not req:
+            return None
+        result = self.llm.chat_json(req[0], req[1])
+        return self._parse_l2_response(result)
 
     def _arbitrate(
         self,
@@ -1655,6 +1751,21 @@ class Kernel1Analyzer:
             result["quadra"] = meta.get("quadra")
             result["model_a"] = meta.get("model_a", [])
 
+            # 重排 candidates 把 verdict 提到首位，同步更新 confidence 和 explanations
+            candidates_list = result.get("candidates", [])
+            verdict_idx = next((i for i, c in enumerate(candidates_list) if c["type"] == verdict), None)
+            if verdict_idx is not None and verdict_idx != 0:
+                verdict_cand = candidates_list.pop(verdict_idx)
+                candidates_list.insert(0, verdict_cand)
+                result["candidates"] = candidates_list
+                result["confidence"] = verdict_cand.get("score", result.get("confidence"))
+                explanations = result.get("candidate_explanations", [])
+                exp_idx = next((i for i, e in enumerate(explanations) if e["type"] == verdict), None)
+                if exp_idx is not None and exp_idx != 0:
+                    verdict_exp = explanations.pop(exp_idx)
+                    explanations.insert(0, verdict_exp)
+                    result["candidate_explanations"] = explanations
+
         return result
 
     def _generate_clarification(
@@ -1721,7 +1832,7 @@ class Kernel1Analyzer:
         case_id: str,
     ) -> dict[str, Any]:
         """
-        三级审理编排（L1→L2→L3）。
+        三级审理编排（L1+L2 并发 → L3）。
         只在 status==uncertain 且 LLM 可用时运行。
         返回可能已升为 certain 或 clarifying 的 result。
         """
@@ -1732,22 +1843,39 @@ class Kernel1Analyzer:
 
         blocking = self._identify_blocking_axis(candidates, result.get("uncertainty_reasons", []), extraction)
 
-        # L1：定向重提取
-        if blocking:
-            l1_out = self._try_directed_reextract(result, extraction, candidates, prepared, case_id, blocking)
+        # 并行准备：L1 prompt 和 L2 prompt
+        l1_request = self._build_l1_request(prepared, blocking, extraction) if blocking else None
+        l2_request = self._build_l2_request(prepared, candidates[:3], extraction)
+
+        requests_list = [r for r in [l1_request, l2_request] if r is not None]
+        results_list = self.llm.chat_json_parallel(requests_list)
+
+        # 按位置解包（顺序与 requests_list 一致）
+        l1_raw, l2_raw = None, None
+        idx = 0
+        if l1_request is not None:
+            l1_raw = results_list[idx]
+            idx += 1
+        if l2_request is not None:
+            l2_raw = results_list[idx]
+            idx += 1
+
+        # 先处理 L1：若 L1 拿到新证据且能升 certain，优先使用
+        if l1_raw and blocking:
+            l1_out = self._apply_directed_reextract(result, extraction, candidates, prepared, case_id, blocking, l1_raw)
             l1_result = l1_out["_result"]
             if l1_result["status"] == "certain":
                 return l1_result  # 报告由 analyze() 统一渲染
-            # 带入 L2，用 L1 的合并结果
             result = l1_result
             extraction = l1_out["_extraction"]
             candidates = l1_out["_candidates"]
 
-        # L2：综合仲裁
-        synthesis = self._synthesis_pass(prepared, candidates[:3], extraction)
-        result = self._arbitrate(result, candidates, synthesis)
-        if result["status"] == "certain":
-            return result  # 报告由 analyze() 统一渲染
+        # 再处理 L2（用 L1 后的可能更新过的 candidates）
+        if l2_raw:
+            synthesis = self._parse_l2_response(l2_raw)
+            result = self._arbitrate(result, candidates, synthesis)
+            if result["status"] == "certain":
+                return result  # 报告由 analyze() 统一渲染
 
         # L3：打回用户
         if blocking:

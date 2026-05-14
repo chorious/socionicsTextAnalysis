@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import os
 import re
@@ -32,12 +33,50 @@ class LLMClient:
         self.last_request_meta: dict[str, Any] | None = None
 
     def chat_json(self, system_prompt: str, user_prompt: str) -> dict[str, Any] | None:
+        """同步单调用，更新共享状态（last_error/last_raw_path/last_request_meta）。"""
         self.last_error = None
         self.last_raw_path = None
         self.last_request_meta = None
+        result, error, raw_path, meta = self._chat_json_single(system_prompt, user_prompt)
+        self.last_error = error
+        self.last_raw_path = raw_path
+        self.last_request_meta = meta
+        return result
+
+    def chat_json_parallel(
+        self, requests: list[tuple[str, str]]
+    ) -> list[dict[str, Any] | None]:
+        """
+        并发执行多个 chat_json 调用。
+        requests: [(system_prompt, user_prompt), ...]
+        返回 result 列表，顺序对应；失败的位置返回 None。
+        并发时不共享 last_error/last_raw_path，错误信息内嵌到 result 的 _llm_error/_llm_raw_path 字段。
+        """
         if not self.config.enabled:
-            self.last_error = "LLM disabled"
-            return None
+            return [None] * len(requests)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(requests)) as executor:
+            futures = [
+                executor.submit(self._chat_json_single, sys, usr)
+                for sys, usr in requests
+            ]
+            results: list[dict[str, Any] | None] = []
+            for f in futures:
+                result, error, raw_path, _meta = f.result()
+                if result is not None and (error or raw_path):
+                    result = dict(result)
+                    if error:
+                        result["_llm_error"] = error
+                    if raw_path:
+                        result["_llm_raw_path"] = raw_path
+                results.append(result)
+            return results
+
+    def _chat_json_single(
+        self, system_prompt: str, user_prompt: str
+    ) -> tuple[dict[str, Any] | None, str | None, str | None, dict[str, Any] | None]:
+        """内部单调用，不修改共享状态，返回 (result, error, raw_path, meta)。"""
+        if not self.config.enabled:
+            return None, "LLM disabled", None, None
 
         payload = {
             "model": self.config.model,
@@ -53,7 +92,7 @@ class LLMClient:
             "Authorization": f"Bearer {self.config.api_key}",
             "Content-Type": "application/json",
         }
-        self.last_request_meta = {
+        meta = {
             "base_url": self.config.base_url,
             "model": self.config.model,
             "timeout": self.config.timeout,
@@ -70,17 +109,17 @@ class LLMClient:
             response.raise_for_status()
             data = response.json()
             content = data["choices"][0]["message"]["content"]
-            self._write_raw(content)
-            return self._parse_json_content(content)
+            raw_path = self._write_raw(content)
+            parsed = self._parse_json_content(content)
+            return parsed, None, raw_path, meta
         except Exception as exc:
-            self.last_error = str(exc)
-            return None
+            return None, str(exc), None, meta
 
-    def _write_raw(self, content: str) -> None:
+    def _write_raw(self, content: str) -> str:
         LOG_DIR.mkdir(parents=True, exist_ok=True)
         path = LOG_DIR / f"llm_raw_{int(time.time() * 1000)}.txt"
         path.write_text(content, encoding="utf-8")
-        self.last_raw_path = str(path)
+        return str(path)
 
     def _parse_json_content(self, content: str) -> dict[str, Any]:
         text = content.strip()
@@ -97,7 +136,7 @@ class LLMClient:
         except json.JSONDecodeError:
             recovered = self._recover_partial_quotes(text)
             if recovered:
-                self.last_error = "Recovered partial JSON from truncated LLM response"
+                recovered["_llm_error"] = "Recovered partial JSON from truncated LLM response"
                 return recovered
             raise
 
