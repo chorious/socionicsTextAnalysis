@@ -34,6 +34,10 @@ GUIDE_POSITIONS = {1, 4, 5, 8}
 SEPARATE_POSITIONS = {2, 3, 6, 7}
 RATIONAL_ELEMENTS = {"Te", "Ti", "Fe", "Fi"}
 IRRATIONAL_ELEMENTS = {"Ne", "Ni", "Se", "Si"}
+STATIC_ELEMENTS = {"Ne", "Ti", "Fi", "Se"}
+DYNAMIC_ELEMENTS = {"Ni", "Si", "Fe", "Te"}
+STATIC_TYPES = {"ILE", "LII", "ESI", "SEE", "EII", "IEE", "LSI", "SLE"}
+DYNAMIC_TYPES = {"SEI", "ESE", "EIE", "IEI", "LIE", "ILI", "LSE", "SLI"}
 
 ELEMENT_GROUPS = {
     "N": {"Ne", "Ni"},
@@ -366,11 +370,19 @@ class Kernel1Analyzer:
                 "second_ignoring_risk": round(second_ignoring_risk, 3),
                 "rule_matches": [],
                 "rule_conflicts": [],
+                "global_matches": [],
+                "global_conflicts": [],
+                "global_score": 0.0,
             }
             if second_ignoring_risk > second_creative_support and second_ignoring_risk >= 0.5:
                 details[type_code]["rule_conflicts"].append(
                     f"{second_element} 更像 7th 忽略，而不是 2nd 创造"
                 )
+            global_score, global_matches, global_conflicts = self._global_model_checks(type_code, signal_summary)
+            raw_scores[type_code] += global_score
+            details[type_code]["global_score"] = round(global_score, 3)
+            details[type_code]["global_matches"].extend(global_matches)
+            details[type_code]["global_conflicts"].extend(global_conflicts)
             if self._rational_pair_is_valid(first_element, second_element):
                 details[type_code]["rule_matches"].append("1st/2nd 满足理性+非理性搭配")
                 raw_scores[type_code] += 0.4
@@ -490,10 +502,137 @@ class Kernel1Analyzer:
                     "second_ignoring_risk": details[type_code]["second_ignoring_risk"],
                     "rule_matches": rule_matches[:8],
                     "rule_conflicts": rule_conflicts[:8],
+                    "global_score": details[type_code]["global_score"],
+                    "global_matches": self._dedupe(details[type_code]["global_matches"])[:8],
+                    "global_conflicts": self._dedupe(details[type_code]["global_conflicts"])[:8],
                     "hard_conflict_count": len(rule_conflicts),
                 }
             )
         return sorted(ranked, key=lambda item: item["score"], reverse=True)
+
+    def _global_model_checks(self, type_code: str, summary: dict[str, dict[str, float]]) -> tuple[float, list[str], list[str]]:
+        meta = self.model_a[type_code]
+        positions = self._positions(meta["model_a"])
+        reverse_positions = self._positions_reverse(meta["model_a"])
+        first = reverse_positions[1]
+        score = 0.0
+        matches: list[str] = []
+        conflicts: list[str] = []
+
+        score += self._check_position_axis(
+            summary, positions, "接受/生产", "accepting", "producing", ACCEPTING_POSITIONS, PRODUCING_POSITIONS, matches, conflicts
+        )
+        score += self._check_position_axis(
+            summary, positions, "接触/惰性", "contact", "inert", CONTACT_POSITIONS, INERT_POSITIONS, matches, conflicts
+        )
+        score += self._check_position_axis(
+            summary, positions, "引导/分离", "guide", "separate", GUIDE_POSITIONS, SEPARATE_POSITIONS, matches, conflicts
+        )
+
+        static_dynamic_score, static_dynamic_matches, static_dynamic_conflicts = self._check_static_dynamic(
+            type_code, summary
+        )
+        score += static_dynamic_score
+        matches.extend(static_dynamic_matches)
+        conflicts.extend(static_dynamic_conflicts)
+
+        rational_score, rational_matches, rational_conflicts = self._check_rational_model(first, summary)
+        score += rational_score
+        matches.extend(rational_matches)
+        conflicts.extend(rational_conflicts)
+
+        return score, self._dedupe(matches), self._dedupe(conflicts)
+
+    def _check_position_axis(
+        self,
+        summary: dict[str, dict[str, float]],
+        positions: dict[str, int],
+        label: str,
+        positive_key: str,
+        negative_key: str,
+        positive_positions: set[int],
+        negative_positions: set[int],
+        matches: list[str],
+        conflicts: list[str],
+    ) -> float:
+        score = 0.0
+        for element, values in summary.items():
+            positive = float(values.get(positive_key, 0.0))
+            negative = float(values.get(negative_key, 0.0))
+            if max(positive, negative) < 0.35:
+                continue
+            position = positions[element]
+            if positive > negative:
+                if position in positive_positions:
+                    score += 0.22 * positive
+                    matches.append(f"{label}: {element} 符合 {positive_key}")
+                else:
+                    score -= 0.35 * positive
+                    conflicts.append(f"{label}: {element} 的 {positive_key} 与 {position} 位冲突")
+            elif negative > positive:
+                if position in negative_positions:
+                    score += 0.22 * negative
+                    matches.append(f"{label}: {element} 符合 {negative_key}")
+                else:
+                    score -= 0.35 * negative
+                    conflicts.append(f"{label}: {element} 的 {negative_key} 与 {position} 位冲突")
+        return score
+
+    def _check_static_dynamic(self, type_code: str, summary: dict[str, dict[str, float]]) -> tuple[float, list[str], list[str]]:
+        mental_static = sum(summary[element]["mental"] for element in STATIC_ELEMENTS)
+        mental_dynamic = sum(summary[element]["mental"] for element in DYNAMIC_ELEMENTS)
+        vital_static = sum(summary[element]["vital"] for element in STATIC_ELEMENTS)
+        vital_dynamic = sum(summary[element]["vital"] for element in DYNAMIC_ELEMENTS)
+        score = 0.0
+        matches: list[str] = []
+        conflicts: list[str] = []
+        if type_code in STATIC_TYPES:
+            support = mental_static + vital_dynamic
+            tension = mental_dynamic + vital_static
+            if support >= 0.4:
+                score += 0.18 * support
+                matches.append("静态/动态: 符合静态类型环路")
+            if tension >= 0.4:
+                score -= 0.28 * tension
+                conflicts.append("静态/动态: 与静态类型环路有张力")
+        elif type_code in DYNAMIC_TYPES:
+            support = mental_dynamic + vital_static
+            tension = mental_static + vital_dynamic
+            if support >= 0.4:
+                score += 0.18 * support
+                matches.append("静态/动态: 符合动态类型环路")
+            if tension >= 0.4:
+                score -= 0.28 * tension
+                conflicts.append("静态/动态: 与动态类型环路有张力")
+        return score, matches, conflicts
+
+    def _check_rational_model(self, first: str, summary: dict[str, dict[str, float]]) -> tuple[float, list[str], list[str]]:
+        accepting_rational = sum(summary[element]["accepting"] for element in RATIONAL_ELEMENTS)
+        accepting_irrational = sum(summary[element]["accepting"] for element in IRRATIONAL_ELEMENTS)
+        producing_rational = sum(summary[element]["producing"] for element in RATIONAL_ELEMENTS)
+        producing_irrational = sum(summary[element]["producing"] for element in IRRATIONAL_ELEMENTS)
+        score = 0.0
+        matches: list[str] = []
+        conflicts: list[str] = []
+        if first in RATIONAL_ELEMENTS:
+            support = accepting_rational + producing_irrational
+            tension = accepting_irrational + producing_rational
+            if support >= 0.4:
+                score += 0.2 * support
+                matches.append("理性/非理性整模型: 支持理性类型")
+            if tension >= 0.4:
+                score -= 0.32 * tension
+                conflicts.append("理性/非理性整模型: 与理性类型有张力")
+        else:
+            support = accepting_irrational + producing_rational
+            tension = accepting_rational + producing_irrational
+            if support >= 0.4:
+                score += 0.2 * support
+                matches.append("理性/非理性整模型: 支持非理性类型")
+            if tension >= 0.4:
+                score -= 0.32 * tension
+                conflicts.append("理性/非理性整模型: 与非理性类型有张力")
+        return score, matches, conflicts
 
     def _summarize_element_signals(self, quotes: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
         summary: dict[str, dict[str, float]] = {
@@ -711,6 +850,9 @@ class Kernel1Analyzer:
                     "tension": tension[:3],
                     "rule_matches": candidate.get("rule_matches", [])[:4],
                     "rule_conflicts": candidate.get("rule_conflicts", [])[:4],
+                    "global_score": candidate.get("global_score", 0.0),
+                    "global_matches": candidate.get("global_matches", [])[:4],
+                    "global_conflicts": candidate.get("global_conflicts", [])[:4],
                 }
             )
         return explanations
@@ -746,6 +888,8 @@ class Kernel1Analyzer:
             )
         if top.get("hard_conflict_count", 0) > 0:
             reasons.append(f"最高候选存在 {top.get('hard_conflict_count')} 条硬规则冲突。")
+        if top.get("global_conflicts"):
+            reasons.append("七大二分法全局校验存在张力：" + "；".join(top.get("global_conflicts", [])[:2]))
         if evidence_count < self.options.min_evidence:
             reasons.append(f"有效证据 {evidence_count} 条，少于 {self.options.min_evidence} 条。")
         if conflicts:
@@ -816,6 +960,8 @@ class Kernel1Analyzer:
             matched = "；".join(item.get("matched", [])[:2]) or "暂无强匹配"
             tension = "；".join(item.get("tension", [])[:1]) or "暂无主要张力"
             conflicts = "；".join(item.get("rule_conflicts", [])[:2]) or "暂无硬冲突"
+            global_matches = "；".join(item.get("global_matches", [])[:2]) or "暂无全局匹配"
+            global_conflicts = "；".join(item.get("global_conflicts", [])[:2]) or "暂无全局张力"
             candidate_lines.append(
                 f"- {item['type']}({item['score']:.3f})：1st={item.get('first_hypothesis')}，"
                 f"2nd={item.get('second_hypothesis')}；"
@@ -823,7 +969,8 @@ class Kernel1Analyzer:
                 f"3D证据={item.get('second_3d_support', 0):.3f}，"
                 f"2nd创造支持={item.get('second_creative_support', 0):.3f}，"
                 f"7th忽略风险={item.get('second_ignoring_risk', 0):.3f}；"
-                f"匹配：{matched}；张力：{tension}；硬冲突：{conflicts}"
+                f"匹配：{matched}；张力：{tension}；硬冲突：{conflicts}；"
+                f"全局校验={item.get('global_score', 0):.3f}，匹配：{global_matches}，张力：{global_conflicts}"
             )
         if not candidate_lines:
             candidate_lines.append("- 暂无候选解释。")
@@ -854,7 +1001,7 @@ class Kernel1Analyzer:
                 "5. **候选解释**：",
                 *candidate_lines,
                 "6. **七大二分法核对**：",
-                "- 当前 MVP 已进行意识/生机、重视/非重视、接受/生产、强/弱、惰性/接触、引导/分离、理/非理搭配的基础评分；详细逐项解释将在下一版展开。",
+                "- 已纳入接受/生产、接触/惰性、引导/分离、静态/动态类型、理性/非理性整模型校验；结果体现在候选解释的全局校验项。",
                 f"7. **完整 Model A 架构图**：{model_a_text}",
                 "8. **不确定点与建议追问**：",
                 *uncertain_lines,
