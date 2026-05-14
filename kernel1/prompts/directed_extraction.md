@@ -43,6 +43,8 @@
 - `guide_signal` 只能是 `guide/separate/unknown`
 - `evidence_type` 只能是 `identity/comfort/stress/tool/avoidance/flexibility/uncertainty/keyword`
 - `confidence` 是 0-1 数字
+- `indicator` 必须是 evidence_extraction 中定义过的 IND 代码；如果无法匹配 IND，输出空 quotes，不要输出空 indicator 的证据
+- L1 只用于补强，不允许用泛泛描述创造新的 4D 主导轴；没有明确 IND TM-A / IND F1-A 时不要标 4D
 
 ## 关键判断提示
 
@@ -65,7 +67,7 @@
   "quotes": [
     {
       "quote": "用户原话短引",
-      "indicator": "IND TM-A 或空字符串",
+      "indicator": "IND TM-A",
       "element_hint": "Ni",
       "dimension_hint": "4D",
       "position_hint": null,

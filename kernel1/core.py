@@ -333,6 +333,10 @@ class Kernel1Analyzer:
         llm_result = self.llm.chat_json(self.extraction_prompt, user_prompt)
         if self._is_valid_extraction(llm_result):
             raw_normalized = self._normalize_extraction(llm_result)
+            if isinstance(llm_result, dict) and llm_result.get("_llm_error"):
+                raw_normalized["_llm_error"] = llm_result.get("_llm_error")
+            if isinstance(llm_result, dict) and llm_result.get("_llm_raw_path"):
+                raw_normalized["_llm_raw_path"] = llm_result.get("_llm_raw_path")
             # 阶段 2：超过 8 条时调用整合精炼
             if len(raw_normalized.get("quotes", [])) > 8:
                 synthesized = self._synthesize_evidence(raw_normalized, prepared)
@@ -537,6 +541,9 @@ class Kernel1Analyzer:
     def _answer_excerpt(self, answer: str) -> str:
         compact = re.sub(r"\s+", " ", answer).strip()
         return compact[:90]
+
+    def _is_partial_recovered(self, extraction: dict[str, Any]) -> bool:
+        return "Recovered partial JSON" in str(extraction.get("_llm_error") or "")
 
     def _allowed_value(self, value: Any, allowed: set[str]) -> str:
         return value if isinstance(value, str) and value in allowed else "unknown"
@@ -1161,7 +1168,8 @@ class Kernel1Analyzer:
 
         # 只有 dimension 类冲突（同元素同时像 1D/4D）才是真实不确定；signal 类（信号方向误判）不阻塞赖宁决断
         real_conflicts = [c for c in conflicts if isinstance(c, dict) and c.get("conflict_kind") != "signal"]
-        hard_uncertain = no_4d or no_3d or few_evidence or bool(real_conflicts)
+        partial_recovered = self._is_partial_recovered(extraction)
+        hard_uncertain = no_4d or no_3d or few_evidence or bool(real_conflicts) or partial_recovered
 
         if not hard_uncertain and margin_small and not score_low and not creative_confused and not insufficiency:
             # 仅 margin 不足：先试赖宁决断
@@ -1184,7 +1192,7 @@ class Kernel1Analyzer:
             "type": type_code,
             "alias": meta.get("alias") if type_code else None,
             "quadra": meta.get("quadra") if type_code else None,
-            "confidence": top["score"],
+            "confidence": min(top["score"], 0.74) if partial_recovered else top["score"],
             "candidates": candidates[:3],
             "candidate_explanations": self._explain_candidates(candidates[:3], extraction),
             "model_a": meta.get("model_a", []) if type_code else [],
@@ -1452,6 +1460,8 @@ class Kernel1Analyzer:
             "_dimension_rationale": element_dim_rationale,
             "_synthesis_notes": decision.get("synthesis_notes", ""),
             "_raw_quote_count": len(raw_quotes),
+            "_llm_error": raw_extraction.get("_llm_error"),
+            "_llm_raw_path": raw_extraction.get("_llm_raw_path"),
             "dichotomy_signals": raw_extraction.get("dichotomy_signals", {}),
             "laning_signals": raw_extraction.get("laning_signals", {}),
             "conflicts": raw_extraction.get("conflicts", []),
@@ -1579,6 +1589,19 @@ class Kernel1Analyzer:
 
         return system_prompt, user_prompt
 
+    def _is_valid_directed_quote(self, quote: dict[str, Any], blocking_axis: dict[str, Any]) -> bool:
+        """L1 directed evidence is allowed to refine only when it carries a real IND marker."""
+        indicator = str(quote.get("indicator", ""))
+        if indicator not in IND_PROFILES:
+            return False
+        element = quote.get("element_hint")
+        if element not in {"Ne", "Ni", "Se", "Si", "Te", "Ti", "Fe", "Fi"}:
+            return False
+        missing = set(blocking_axis.get("missing_elements") or [])
+        if missing and element not in missing:
+            return False
+        return True
+
     def _apply_directed_reextract(
         self,
         result: dict[str, Any],
@@ -1593,6 +1616,10 @@ class Kernel1Analyzer:
         if not llm_raw_result or not self._is_valid_extraction(llm_raw_result):
             return {"_result": result, "_extraction": extraction, "_candidates": candidates}
         extra = self._normalize_extraction(llm_raw_result)
+        extra["quotes"] = [
+            q for q in extra.get("quotes", [])
+            if self._is_valid_directed_quote(q, blocking_axis)
+        ]
         if not extra or not extra.get("quotes"):
             return {"_result": result, "_extraction": extraction, "_candidates": candidates}
 
@@ -1876,6 +1903,10 @@ class Kernel1Analyzer:
         else:
             decision = "uncertain"
             reason = f"综合层置信度 {coherence_conf:.2f} 过低，不采信。"
+
+        if "Recovered partial JSON" in str(result.get("llm_error") or "") and decision in {"certain", "certain_synthesis_override"}:
+            decision = "uncertain"
+            reason = "初始抽取来自截断 JSON 恢复，禁止 L2 仲裁直接确定类型。"
 
         result["arbitration"] = {"voters": voters, "decision": decision, "reason": reason}
 
