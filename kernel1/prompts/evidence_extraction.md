@@ -44,6 +44,18 @@
   - 重视/非重视：舒适、愿意讨论=valued；回避、厌倦、压力源=unvalued。
 - 如果同一元素同时像 1D 和 4D，必须写入 `conflicts`。
 
+- `indicator` 必须是以下合法 IND 代码之一（或留空字符串）：
+  `IND TM-A`、`IND F1-A`、`IND MN-A`、`IND MN-C`、`IND VT-A`、`IND VT-B`、`IND VT-F`、
+  `IND NR-D`、`IND NR-A`、`IND 1D-A`、`IND LD-A`、`IND LD-E`、`IND 1D-L`、
+  `IND ST-A`、`IND HD-B`、`IND HD-F`、`IND VR-A`、`IND NV-A`、`IND NV-D`。
+  如果没有命中具名指标，填 `""`。
+
+- `laning_signals` 字段用于赖宁二分法象限决断，只有在两个候选类型十分接近时才有意义。
+  只输出你有把握的项（lean 不是 unknown 的），无把握全部省略：
+  - `democratic` vs `aristocratic`：看重个人独立属性=democratic，看重群体标签/等级=aristocratic。
+  - `merry` vs `serious`：偏好轻松情绪共鸣=merry，客观克制保持距离=serious。
+  - `judicious` vs `decisive`：行动前反复权衡=judicious，雷厉风行快速切割=decisive。
+
 JSON 结构：
 
 ```json
@@ -51,7 +63,7 @@ JSON 结构：
   "quotes": [
     {
       "quote": "用户原话短引",
-      "indicator": "IND TM-A 或 二分法名称",
+      "indicator": "IND TM-A",
       "element_hint": "Ne",
       "dimension_hint": "4D",
       "position_hint": null,
@@ -72,6 +84,11 @@ JSON 结构：
     "T_vs_F": {"lean": "T/F/unknown", "confidence": 0.0, "evidence": ["原话"]},
     "R_vs_Ir": {"lean": "R/Ir/unknown", "confidence": 0.0, "evidence": ["原话"]}
   },
+  "laning_signals": {
+    "democratic": {"lean": "democratic/aristocratic/unknown", "confidence": 0.0, "evidence": ["原话"]},
+    "merry": {"lean": "merry/serious/unknown", "confidence": 0.0, "evidence": ["原话"]},
+    "judicious": {"lean": "judicious/decisive/unknown", "confidence": 0.0, "evidence": ["原话"]}
+  },
   "conflicts": [
     {
       "topic": "冲突点",
@@ -86,5 +103,5 @@ JSON 结构：
 最小合法示例：
 
 ```json
-{"quotes":[],"dichotomy_signals":{"E_vs_I":{"lean":"unknown","confidence":0,"evidence":[]},"N_vs_S":{"lean":"unknown","confidence":0,"evidence":[]},"T_vs_F":{"lean":"unknown","confidence":0,"evidence":[]},"R_vs_Ir":{"lean":"unknown","confidence":0,"evidence":[]}},"conflicts":[],"insufficiency":["证据不足"]}
+{"quotes":[],"dichotomy_signals":{"E_vs_I":{"lean":"unknown","confidence":0,"evidence":[]},"N_vs_S":{"lean":"unknown","confidence":0,"evidence":[]},"T_vs_F":{"lean":"unknown","confidence":0,"evidence":[]},"R_vs_Ir":{"lean":"unknown","confidence":0,"evidence":[]}},"laning_signals":{},"conflicts":[],"insufficiency":["证据不足"]}
 ```

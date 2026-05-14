@@ -50,6 +50,47 @@ ELEMENT_GROUPS = {
     "Ir": {"Ne", "Ni", "Se", "Si"},
 }
 
+# 赖宁四象限二分法：quadra 集合
+LANING_QUADRA: dict[str, frozenset[str]] = {
+    "democratic":  frozenset({"ILE", "LII", "ESE", "SEI", "SEE", "ESI", "LIE", "ILI"}),  # Alpha + Gamma
+    "aristocratic": frozenset({"SLE", "LSI", "EIE", "IEI", "IEE", "EII", "LSE", "SLI"}),  # Beta + Delta
+    "merry":       frozenset({"ILE", "LII", "ESE", "SEI", "SLE", "LSI", "EIE", "IEI"}),  # Alpha + Beta
+    "serious":     frozenset({"SEE", "ESI", "LIE", "ILI", "IEE", "EII", "LSE", "SLI"}),  # Gamma + Delta
+    "judicious":   frozenset({"ILE", "LII", "ESE", "SEI", "IEE", "EII", "LSE", "SLI"}),  # Alpha + Delta
+    "decisive":    frozenset({"SLE", "LSI", "EIE", "IEI", "SEE", "ESI", "LIE", "ILI"}),  # Beta + Gamma
+}
+
+# IND 行为指标 → 位置特征 profile
+# 每个指标映射到它最强指向的维度/强弱/重视/环路字段，用于给 extraction.quotes 里的 indicator 字段加分
+IND_PROFILES: dict[str, dict[str, Any]] = {
+    # 4D 全局性——主导/演示（位置1/8）
+    "IND TM-A": {"dimension_hint": "4D", "strength_signal": "strong", "mental_signal": "mental"},
+    "IND F1-A": {"dimension_hint": "4D", "strength_signal": "strong", "valued_signal": "valued"},
+    # 意识环——位置1-4
+    "IND MN-A": {"mental_signal": "mental"},
+    "IND MN-C": {"mental_signal": "mental", "accepting_signal": "producing"},
+    # 生机环——位置5-8
+    "IND VT-A": {"mental_signal": "vital"},
+    "IND VT-B": {"mental_signal": "vital", "contact_signal": "inert"},
+    "IND VT-F": {"mental_signal": "vital", "valued_signal": "unvalued"},
+    # 2D 规范——角色/激活（位置3/6）
+    "IND NR-D": {"dimension_hint": "2D"},
+    "IND NR-A": {"dimension_hint": "2D", "strength_signal": "weak"},
+    # 1D 极弱——薄弱/暗示（位置4/5）
+    "IND 1D-A": {"dimension_hint": "1D", "strength_signal": "weak"},
+    "IND LD-A": {"dimension_hint": "1D", "strength_signal": "weak"},
+    "IND LD-E": {"dimension_hint": "1D", "strength_signal": "weak", "valued_signal": "unvalued"},
+    "IND 1D-L": {"dimension_hint": "1D", "strength_signal": "weak", "valued_signal": "unvalued"},
+    # 3D 情境——创造/忽略（位置2/7）
+    "IND ST-A": {"dimension_hint": "3D", "strength_signal": "strong"},
+    "IND HD-B": {"dimension_hint": "3D"},
+    "IND HD-F": {"dimension_hint": "3D", "valued_signal": "unvalued"},
+    # 重视/非重视
+    "IND VR-A": {"valued_signal": "valued"},
+    "IND NV-A": {"valued_signal": "unvalued", "strength_signal": "weak"},
+    "IND NV-D": {"valued_signal": "unvalued"},
+}
+
 
 @dataclass(frozen=True)
 class AnalyzeOptions:
@@ -318,6 +359,23 @@ class Kernel1Analyzer:
         )
         if not isinstance(data.get("dichotomy_signals"), dict):
             data["dichotomy_signals"] = {}
+
+        # 规范化 laning_signals
+        allowed_laning_keys = {"democratic", "aristocratic", "merry", "serious", "judicious", "decisive"}
+        raw_laning = data.get("laning_signals", {})
+        cleaned_laning: dict[str, Any] = {}
+        if isinstance(raw_laning, dict):
+            for key, sig in raw_laning.items():
+                if not isinstance(sig, dict):
+                    continue
+                lean_val = sig.get("lean", "unknown")
+                if lean_val not in allowed_laning_keys and lean_val != "unknown":
+                    lean_val = "unknown"
+                conf = self._bounded_float(sig.get("confidence"), 0.0)
+                evidence = [str(e)[:60] for e in sig.get("evidence", [])[:2]] if isinstance(sig.get("evidence"), list) else []
+                if lean_val != "unknown" and conf > 0:
+                    cleaned_laning[key] = {"lean": lean_val, "confidence": conf, "evidence": evidence}
+        data["laning_signals"] = cleaned_laning
         return data
 
     def _allowed_value(self, value: Any, allowed: set[str]) -> str:
@@ -332,52 +390,88 @@ class Kernel1Analyzer:
 
     def _heuristic_extract(self, text: str) -> dict[str, Any]:
         sentences = [s.strip() for s in re.split(r"[。！？!?；;\n]+", text) if s.strip()]
+        # (keywords, element, dimension, indicator, macro_dichotomy, strength, valued, mental, accepting, contact, guide)
         rules = [
-            (("未来", "可能", "潜力", "方向", "变化"), "Ne", "4D", "IND TM-A", "N"),
-            (("时间", "趋势", "预感", "走向", "长期"), "Ni", "4D", "IND TM-A", "N"),
-            (("空间", "力量", "控制", "边界", "压迫"), "Se", "3D", "显性/感觉", "S"),
-            (("身体", "舒适", "环境", "节奏", "适应"), "Si", "3D", "显性/感觉", "S"),
-            (("效率", "流程", "执行", "资源", "投入产出", "工具"), "Te", "3D", "IND ST-A", "T"),
-            (("结构", "逻辑", "分类", "定义", "框架"), "Ti", "3D", "IND ST-A", "T"),
-            (("气氛", "情绪", "表达", "感染", "热场"), "Fe", "2D", "IND NR-D", "F"),
-            (("关系", "距离", "亲近", "冒犯", "道德"), "Fi", "1D", "IND 1D-L", "F"),
+            (("未来", "可能", "潜力", "可能性", "隐含", "方向", "变化", "发展"), "Ne", "4D", "IND TM-A", "N",
+             "strong", "valued", "mental", "accepting", "inert", "guide"),
+            (("时间", "趋势", "预感", "走向", "长期", "过程", "进展"), "Ni", "4D", "IND TM-A", "N",
+             "strong", "valued", "mental", "accepting", "inert", "guide"),
+            (("空间", "力量", "控制", "边界", "压迫", "领地", "强势", "掌控"), "Se", "3D", "IND ST-A", "S",
+             "strong", "valued", "mental", "producing", "contact", "separate"),
+            (("身体", "舒适", "环境", "节奏", "适应", "感受", "体感", "细节"), "Si", "3D", "IND ST-A", "S",
+             "strong", "valued", "mental", "accepting", "inert", "guide"),
+            (("效率", "流程", "执行", "资源", "投入产出", "工具", "结果导向", "优化"), "Te", "3D", "IND ST-A", "T",
+             "strong", "valued", "mental", "producing", "contact", "separate"),
+            (("结构", "逻辑", "分类", "定义", "框架", "原则", "体系", "规律"), "Ti", "3D", "IND ST-A", "T",
+             "strong", "valued", "mental", "accepting", "inert", "guide"),
+            (("气氛", "情绪", "表达", "感染", "热场", "氛围", "共鸣", "活跃"), "Fe", "2D", "IND NR-D", "F",
+             "weak", "valued", "mental", "producing", "contact", "separate"),
+            (("关系", "距离", "亲近", "冒犯", "道德", "吸引", "排斥", "人际"), "Fi", "1D", "IND 1D-L", "F",
+             "weak", "valued", "vital", "accepting", "inert", "guide"),
+            # 2D/1D 弱点信号
+            (("必须", "应该", "规范", "正确", "标准", "义务"), None, "2D", "IND NR-D", None,
+             "weak", "unvalued", "mental", "unknown", "unknown", "unknown"),
+            (("焦虑", "不知道怎么", "很难", "末日", "崩溃", "压力很大"), None, "1D", "IND LD-E", None,
+             "weak", "unvalued", "unknown", "unknown", "unknown", "unknown"),
+            # 生机环自动化信号
+            (("有时候", "习惯", "自然而然", "不知不觉", "下意识"), None, "unknown", "IND VT-B", None,
+             "unknown", "unknown", "vital", "unknown", "inert", "unknown"),
+            # 4D 认同信号
+            (("我就是这样", "天生", "一直如此", "本能", "游刃有余"), None, "4D", "IND F1-A", None,
+             "strong", "valued", "unknown", "unknown", "unknown", "unknown"),
         ]
         quotes: list[dict[str, Any]] = []
-        dichotomy_counts = {"N": 0, "S": 0, "T": 0, "F": 0, "E": 0, "I": 0}
+        dichotomy_counts: dict[str, int] = {"N": 0, "S": 0, "T": 0, "F": 0, "E": 0, "I": 0}
 
         for sentence in sentences:
-            for keywords, element, dimension, indicator, macro in rules:
+            for rule in rules:
+                keywords, element, dimension, indicator, macro = rule[:5]
+                strength, valued, mental, accepting, contact, guide = rule[5:]
                 if any(keyword in sentence for keyword in keywords):
-                    quotes.append(
-                        {
-                            "quote": sentence[:120],
-                            "indicator": indicator,
-                            "element_hint": element,
-                            "dimension_hint": dimension,
-                            "position_hint": None,
-                            "confidence": 0.55,
-                            "strength_signal": "strong" if dimension in {"3D", "4D"} else "weak",
-                            "valued_signal": "unknown",
-                            "mental_signal": "unknown",
-                            "evidence_type": "keyword",
-                            "reason": f"命中 {element} 相关行为词：{', '.join(keywords[:3])}",
-                        }
-                    )
-                    dichotomy_counts[macro] += 1
-                    dichotomy_counts["E" if element in ELEMENT_GROUPS["E"] else "I"] += 1
+                    q: dict[str, Any] = {
+                        "quote": sentence[:120],
+                        "indicator": indicator,
+                        "element_hint": element if element else "unknown",
+                        "dimension_hint": dimension,
+                        "position_hint": None,
+                        "confidence": 0.5 if dimension in {"1D", "2D"} else 0.6,
+                        "strength_signal": strength,
+                        "valued_signal": valued,
+                        "mental_signal": mental,
+                        "accepting_signal": accepting,
+                        "contact_signal": contact,
+                        "guide_signal": guide,
+                        "evidence_type": "keyword",
+                        "reason": f"命中 {element or '?'} 相关行为词：{', '.join(keywords[:3])}",
+                    }
+                    quotes.append(q)
+                    if macro:
+                        dichotomy_counts[macro] += 1
+                    if element and element in ELEMENT_GROUPS["E"]:
+                        dichotomy_counts["E"] += 1
+                    elif element and element in ELEMENT_GROUPS["I"]:
+                        dichotomy_counts["I"] += 1
                     break
             if len(quotes) >= 12:
                 break
 
+        # 理性/非理性：看 T/F 类元素落在 accepting 还是 producing
+        rational_accepting = sum(1 for q in quotes if q["element_hint"] in RATIONAL_ELEMENTS and q["accepting_signal"] == "accepting")
+        irrational_accepting = sum(1 for q in quotes if q["element_hint"] in IRRATIONAL_ELEMENTS and q["accepting_signal"] == "accepting")
+        if rational_accepting > irrational_accepting:
+            r_lean, r_conf = "R", round((rational_accepting - irrational_accepting) / max(rational_accepting + irrational_accepting, 1), 2)
+        elif irrational_accepting > rational_accepting:
+            r_lean, r_conf = "Ir", round((irrational_accepting - rational_accepting) / max(rational_accepting + irrational_accepting, 1), 2)
+        else:
+            r_lean, r_conf = "unknown", 0.0
+
         def lean(a: str, b: str) -> dict[str, Any]:
             if dichotomy_counts[a] == dichotomy_counts[b]:
-                value = "unknown"
-                confidence = 0.0
-            else:
-                value = a if dichotomy_counts[a] > dichotomy_counts[b] else b
-                total = dichotomy_counts[a] + dichotomy_counts[b]
-                confidence = abs(dichotomy_counts[a] - dichotomy_counts[b]) / max(total, 1)
-            return {"lean": value, "confidence": round(confidence, 2), "evidence": []}
+                return {"lean": "unknown", "confidence": 0.0, "evidence": []}
+            winner = a if dichotomy_counts[a] > dichotomy_counts[b] else b
+            total = dichotomy_counts[a] + dichotomy_counts[b]
+            conf = abs(dichotomy_counts[a] - dichotomy_counts[b]) / max(total, 1)
+            return {"lean": winner, "confidence": round(conf, 2), "evidence": []}
 
         insufficiency = []
         if len(quotes) < self.options.min_evidence:
@@ -389,8 +483,9 @@ class Kernel1Analyzer:
                 "E_vs_I": lean("E", "I"),
                 "N_vs_S": lean("N", "S"),
                 "T_vs_F": lean("T", "F"),
-                "R_vs_Ir": {"lean": "unknown", "confidence": 0.0, "evidence": []},
+                "R_vs_Ir": {"lean": r_lean, "confidence": r_conf, "evidence": []},
             },
+            "laning_signals": {},
             "conflicts": [],
             "insufficiency": insufficiency,
         }
@@ -534,6 +629,57 @@ class Kernel1Analyzer:
                         guide_signal == "separate" and position in SEPARATE_POSITIONS
                     ):
                         raw_scores[type_code] += 0.15 * confidence
+
+        # IND 行为指标积分：每条 quote 的 indicator 若命中 IND_PROFILES，则补充缺失信号后再走评分
+        for item in quotes:
+            indicator = item.get("indicator", "")
+            profile = IND_PROFILES.get(indicator)
+            if not profile:
+                continue
+            element = item.get("element_hint")
+            if element not in {"Ne", "Ni", "Se", "Si", "Te", "Ti", "Fe", "Fi"}:
+                continue
+            confidence = float(item.get("confidence") or 0.5)
+            # 用 IND profile 补充当条证据缺失的信号，并给候选类型加分
+            for type_code, meta in self.model_a.items():
+                positions = self._positions(meta["model_a"])
+                position = positions[element]
+                ind_score = 0.0
+                # dimension_hint 补充分
+                ind_dim = profile.get("dimension_hint")
+                if ind_dim and ind_dim in DIMENSION_POSITIONS:
+                    if position in DIMENSION_POSITIONS[ind_dim]:
+                        ind_score += 0.5 * confidence
+                    else:
+                        ind_score -= self._dimension_mismatch_penalty(ind_dim, position) * 0.4 * confidence
+                # strength_signal 补充分
+                ind_str = profile.get("strength_signal")
+                if ind_str in {"strong", "weak"}:
+                    if (ind_str == "strong" and position in STRONG_POSITIONS) or (
+                        ind_str == "weak" and position not in STRONG_POSITIONS
+                    ):
+                        ind_score += 0.2 * confidence
+                    else:
+                        ind_score -= 0.25 * confidence
+                # valued_signal 补充分
+                ind_val = profile.get("valued_signal")
+                if ind_val in {"valued", "unvalued"}:
+                    if (ind_val == "valued" and position in VALUED_POSITIONS) or (
+                        ind_val == "unvalued" and position not in VALUED_POSITIONS
+                    ):
+                        ind_score += 0.15 * confidence
+                    else:
+                        ind_score -= 0.2 * confidence
+                # mental_signal 补充分
+                ind_men = profile.get("mental_signal")
+                if ind_men in {"mental", "vital"}:
+                    if (ind_men == "mental" and position in MENTAL_POSITIONS) or (
+                        ind_men == "vital" and position not in MENTAL_POSITIONS
+                    ):
+                        ind_score += 0.12 * confidence
+                    else:
+                        ind_score -= 0.15 * confidence
+                raw_scores[type_code] += ind_score
 
         dichotomy_scores = extraction.get("dichotomy_signals", {})
         for key, signal in dichotomy_scores.items():
@@ -843,18 +989,30 @@ class Kernel1Analyzer:
         conflicts = extraction.get("conflicts", [])
         insufficiency = extraction.get("insufficiency", [])
 
-        status = "certain"
-        if (
-            top["score"] < self.options.top_threshold
-            or top["score"] - second["score"] < self.options.margin_threshold
-            or top.get("first_4d_support", 0.0) < 0.4
-            or top.get("second_3d_support", 0.0) < 0.4
-            or top.get("second_creative_support", 0.0) <= top.get("second_ignoring_risk", 0.0)
-            or evidence_count < self.options.min_evidence
-            or conflicts
-            or insufficiency
-        ):
+        laning_signals = extraction.get("laning_signals", {})
+        laning_result: dict[str, Any] | None = None
+
+        margin_small = top["score"] - second["score"] < self.options.margin_threshold
+        score_low = top["score"] < self.options.top_threshold
+        no_4d = top.get("first_4d_support", 0.0) < 0.4
+        no_3d = top.get("second_3d_support", 0.0) < 0.4
+        creative_confused = top.get("second_creative_support", 0.0) <= top.get("second_ignoring_risk", 0.0)
+        few_evidence = evidence_count < self.options.min_evidence
+
+        hard_uncertain = no_4d or no_3d or few_evidence or conflicts
+
+        if not hard_uncertain and margin_small and not score_low and not creative_confused and not insufficiency:
+            # 仅 margin 不足：先试赖宁决断
+            laning_result = self._laning_tiebreak(candidates, laning_signals)
+            if laning_result:
+                top = laning_result["winner"]
+                status = "certain"
+            else:
+                status = "uncertain"
+        elif score_low or hard_uncertain or creative_confused or insufficiency:
             status = "uncertain"
+        else:
+            status = "certain"
 
         type_code = top["type"] if status == "certain" else None
         meta = self.model_a.get(top["type"], {})
@@ -883,9 +1041,11 @@ class Kernel1Analyzer:
             "llm_raw_path": extraction.get("_llm_raw_path"),
             "llm_request": extraction.get("_llm_request"),
             "dichotomy_signals": extraction.get("dichotomy_signals", {}),
+            "laning_signals": laning_signals,
+            "laning_tiebreak": laning_result,
             "conflicts": conflicts,
             "insufficiency": insufficiency,
-            "uncertainty_reasons": self._uncertainty_reasons(top, second, evidence_count, conflicts, insufficiency),
+            "uncertainty_reasons": self._uncertainty_reasons(top, second, evidence_count, conflicts, insufficiency, laning_result),
             "report": "",
         }
 
@@ -939,22 +1099,24 @@ class Kernel1Analyzer:
         evidence_count: int,
         conflicts: list[Any],
         insufficiency: list[Any],
+        laning_result: dict[str, Any] | None = None,
     ) -> list[str]:
         reasons = []
         if top["score"] < self.options.top_threshold:
             reasons.append(f"最高分 {top['score']:.3f} 低于确定阈值 {self.options.top_threshold:.2f}。")
-        if top["score"] - second["score"] < self.options.margin_threshold:
-            reasons.append(
-                f"前两名分差 {top['score'] - second['score']:.3f} 小于 {self.options.margin_threshold:.2f}。"
-            )
+        margin = top["score"] - second["score"]
+        if margin < self.options.margin_threshold:
+            if laning_result:
+                reasons.append(
+                    f"前两名分差 {margin:.3f} 小于阈值，已由赖宁二分法决断为 {laning_result['winner']['type']}。"
+                    f"（{'; '.join(laning_result.get('used_signals', []))}）"
+                )
+            else:
+                reasons.append(f"前两名分差 {margin:.3f} 小于 {self.options.margin_threshold:.2f}，赖宁信号不足无法决断。")
         if top.get("first_4d_support", 0.0) < 0.4:
-            reasons.append(
-                f"未锁定 4D 主导：{top.get('first_hypothesis')} 的 4D 证据不足。"
-            )
+            reasons.append(f"未锁定 4D 主导：{top.get('first_hypothesis')} 的 4D 证据不足。")
         if top.get("second_3d_support", 0.0) < 0.4:
-            reasons.append(
-                f"未锁定 3D 创造：{top.get('second_hypothesis')} 的 3D 证据不足。"
-            )
+            reasons.append(f"未锁定 3D 创造：{top.get('second_hypothesis')} 的 3D 证据不足。")
         if top.get("second_creative_support", 0.0) <= top.get("second_ignoring_risk", 0.0):
             reasons.append(
                 f"创造/忽略未分清：{top.get('second_hypothesis')} 的 2nd 创造支持 "
@@ -972,6 +1134,55 @@ class Kernel1Analyzer:
         if insufficiency:
             reasons.extend(str(item) for item in insufficiency)
         return reasons
+
+    def _laning_tiebreak(
+        self,
+        candidates: list[dict[str, Any]],
+        laning_signals: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """
+        赖宁二分法象限缩圈：只在 Top-2 分差 < margin 且有 laning_signals 时调用。
+        对每个赖宁维度计算 Top-2 候选各自属于哪侧，结合信号 lean/confidence 打分，
+        返回得分更高的候选（或 None 表示无法决断）。
+        """
+        if len(candidates) < 2:
+            return None
+        top, second = candidates[0], candidates[1]
+        top_type, second_type = top["type"], second["type"]
+
+        scores: dict[str, float] = {top_type: 0.0, second_type: 0.0}
+        used: list[str] = []
+
+        for dim, signal in laning_signals.items():
+            if not isinstance(signal, dict):
+                continue
+            lean_val = signal.get("lean", "unknown")
+            conf = float(signal.get("confidence") or 0.0)
+            if lean_val == "unknown" or conf <= 0:
+                continue
+            group = LANING_QUADRA.get(lean_val)
+            if group is None:
+                continue
+            for t in (top_type, second_type):
+                if t in group:
+                    scores[t] += conf
+                else:
+                    scores[t] -= conf * 0.5
+            used.append(f"{dim}→{lean_val}({conf:.2f})")
+
+        if not used:
+            return None
+
+        if scores[top_type] == scores[second_type]:
+            return None
+
+        winner_type = top_type if scores[top_type] > scores[second_type] else second_type
+        winner = top if winner_type == top_type else second
+        return {
+            "winner": winner,
+            "scores": {t: round(s, 3) for t, s in scores.items()},
+            "used_signals": used,
+        }
 
     def _follow_up_questions(self, result: dict[str, Any]) -> list[str]:
         candidates = result.get("candidates", [])
@@ -1066,25 +1277,45 @@ class Kernel1Analyzer:
         if not follow_up_lines:
             follow_up_lines.append("- 暂无追问建议。")
 
-        return "\n".join(
-            [
-                f"1. **判型状态**：{status_cn}",
-                f"2. **类型结论**：{conclusion}",
-                "3. **输入预处理**：",
-                preprocess_line,
-                "4. **核心证据链**：",
-                *evidence_lines,
-                "5. **候选解释**：",
-                *candidate_lines,
-                "6. **七大二分法核对**：",
-                "- 已纳入接受/生产、接触/惰性、引导/分离、静态/动态类型、理性/非理性整模型校验；结果体现在候选解释的全局校验项。",
-                f"7. **完整 Model A 架构图**：{model_a_text}",
-                "8. **不确定点与建议追问**：",
-                *uncertain_lines,
-                "9. **下一轮追问建议**：",
-                *follow_up_lines,
-            ]
-        )
+        laning_line = ""
+        laning_result = result.get("laning_tiebreak")
+        if laning_result:
+            laning_line = (
+                f"- 赖宁二分法决断：{laning_result['winner']['type']}；"
+                f"信号：{'; '.join(laning_result.get('used_signals', []))}；"
+                f"各类型分：{laning_result.get('scores', {})}。"
+            )
+
+        ind_sources = []
+        for item in result.get("evidence_chain", [])[:6]:
+            ind = item.get("indicator", "")
+            if ind.startswith("IND") and ind in IND_PROFILES:
+                ind_sources.append(f"{ind}→{item.get('element_hint', '?')}/{item.get('dimension_hint', '?')}")
+        ind_line = f"- 命中 IND 指标：{', '.join(ind_sources)}" if ind_sources else "- 未命中具名 IND 指标（或使用关键词规则）。"
+
+        sections = [
+            f"1. **判型状态**：{status_cn}",
+            f"2. **类型结论**：{conclusion}",
+            "3. **输入预处理**：",
+            preprocess_line,
+            "4. **核心证据链**：",
+            *evidence_lines,
+            "5. **候选解释**：",
+            *candidate_lines,
+            "6. **七大二分法核对**：",
+            "- 已纳入接受/生产、接触/惰性、引导/分离、静态/动态类型、理性/非理性整模型校验；结果体现在候选解释的全局校验项。",
+            ind_line,
+        ]
+        if laning_line:
+            sections.append(laning_line)
+        sections += [
+            f"7. **完整 Model A 架构图**：{model_a_text}",
+            "8. **不确定点与建议追问**：",
+            *uncertain_lines,
+            "9. **下一轮追问建议**：",
+            *follow_up_lines,
+        ]
+        return "\n".join(sections)
 
     def _write_artifacts(self, case_id: str, result: dict[str, Any]) -> None:
         safe_case_id = re.sub(r"[^a-zA-Z0-9_.-]+", "_", case_id)
