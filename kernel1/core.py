@@ -91,6 +91,31 @@ IND_PROFILES: dict[str, dict[str, Any]] = {
     "IND NV-D": {"valued_signal": "unvalued"},
 }
 
+# L1 阻塞轴描述：轴 key → 人类可读描述 + 需要寻找的证据方向
+AXIS_DESCRIPTIONS: dict[str, str] = {
+    "Ni_vs_Si": "区分 Ni（时间趋势/预感）与 Si（感官记忆/体感舒适）——找文本里关于时间感、未来走向、过去经验、身体舒适度的描述",
+    "Ne_vs_Se": "区分 Ne（外部可能性）与 Se（外部力量/现实掌控）——找关于发散可能性、介入改变现实、边界与力量的描述",
+    "Te_vs_Ti": "区分 Te（外部效率/结果）与 Ti（内部结构/框架）——找关于操作步骤、数据结果、逻辑自洽、框架完整性的描述",
+    "Fe_vs_Fi": "区分 Fe（外部情绪氛围）与 Fi（内部价值关系）——找关于带动气氛、关系质量、立场对错、道德距离的描述",
+    "Ni_vs_Ne": "区分 Ni（内倾直觉/时间流向）与 Ne（外倾直觉/可能性）——找关于是追踪单一趋势还是发散多种可能性的描述",
+    "Si_vs_Se": "区分 Si（内倾感觉/体感记忆）与 Se（外倾感觉/空间力量）——找关于是关注内在舒适还是外部掌控的描述",
+    "Te_vs_Fe": "区分 Te（逻辑效率导向）与 Fe（情感氛围导向）——找关于用逻辑还是情感驱动决策的描述",
+    "Ti_vs_Fi": "区分 Ti（内部逻辑框架）与 Fi（内部道德价值）——找关于是追求一致性逻辑还是追求价值立场的描述",
+    "2nd_vs_7th": "区分 2nd 创造（主动、重视、意识环）与 7th 忽略（强但非重视、生机环）——找该功能是主动谈起还是被动应付、厌倦",
+}
+
+# 元素对 → 轴 key 的归一化映射（用于 _identify_blocking_axis）
+ELEMENT_PAIR_TO_AXIS: dict[frozenset, str] = {
+    frozenset({"Ni", "Si"}): "Ni_vs_Si",
+    frozenset({"Ne", "Se"}): "Ne_vs_Se",
+    frozenset({"Te", "Ti"}): "Te_vs_Ti",
+    frozenset({"Fe", "Fi"}): "Fe_vs_Fi",
+    frozenset({"Ni", "Ne"}): "Ni_vs_Ne",
+    frozenset({"Si", "Se"}): "Si_vs_Se",
+    frozenset({"Te", "Fe"}): "Te_vs_Fe",
+    frozenset({"Ti", "Fi"}): "Ti_vs_Fi",
+}
+
 
 @dataclass(frozen=True)
 class AnalyzeOptions:
@@ -122,7 +147,9 @@ class Kernel1Analyzer:
         extraction = self._extract_evidence(prepared["analysis_text"], prepared)
         candidates = self._score_candidates(extraction)
         result = self._build_result(case_id, candidates, extraction, prepared)
-        result["report"] = self._render_report(result)
+        result = self._refine(result, extraction, candidates, prepared, case_id)
+        if not result.get("report"):
+            result["report"] = self._render_report(result)
         self._write_artifacts(case_id, result)
         return result
 
@@ -137,7 +164,9 @@ class Kernel1Analyzer:
         extraction = self._extract_evidence(prepared["analysis_text"], prepared)
         candidates = self._score_candidates(extraction)
         result = self._build_result(case_id, candidates, extraction, prepared)
-        result["report"] = self._render_report(result)
+        result = self._refine(result, extraction, candidates, prepared, case_id)
+        if not result.get("report"):
+            result["report"] = self._render_report(result)
         self._write_artifacts(case_id, result)
         return result
 
@@ -320,7 +349,7 @@ class Kernel1Analyzer:
         allowed_elements = {"Ne", "Ni", "Se", "Si", "Te", "Ti", "Fe", "Fi", "unknown"}
         allowed_dimensions = {"1D", "2D", "3D", "4D", "unknown"}
         cleaned_quotes = []
-        for item in data.get("quotes", [])[:8]:
+        for item in data.get("quotes", [])[:12]:
             if not isinstance(item, dict):
                 continue
             quote = str(item.get("quote", "")).strip()[:90]
@@ -351,7 +380,22 @@ class Kernel1Analyzer:
             )
 
         data["quotes"] = cleaned_quotes
-        data["conflicts"] = data.get("conflicts", [])[:5] if isinstance(data.get("conflicts"), list) else []
+        # 规范化 conflicts，新增 conflict_kind 字段
+        raw_conflicts = data.get("conflicts", []) if isinstance(data.get("conflicts"), list) else []
+        cleaned_conflicts = []
+        for c in raw_conflicts[:5]:
+            if not isinstance(c, dict):
+                continue
+            kind = c.get("conflict_kind", "dimension")
+            if kind not in {"dimension", "signal"}:
+                kind = "dimension"
+            cleaned_conflicts.append({
+                "topic": str(c.get("topic", ""))[:60],
+                "evidence": [str(e)[:60] for e in c.get("evidence", [])[:2]] if isinstance(c.get("evidence"), list) else [],
+                "reason": str(c.get("reason", ""))[:80],
+                "conflict_kind": kind,
+            })
+        data["conflicts"] = cleaned_conflicts
         data["insufficiency"] = (
             [str(item)[:80] for item in data.get("insufficiency", [])[:5]]
             if isinstance(data.get("insufficiency"), list)
@@ -452,7 +496,7 @@ class Kernel1Analyzer:
                     elif element and element in ELEMENT_GROUPS["I"]:
                         dichotomy_counts["I"] += 1
                     break
-            if len(quotes) >= 12:
+            if len(quotes) >= 20:
                 break
 
         # 理性/非理性：看 T/F 类元素落在 accepting 还是 producing
@@ -999,7 +1043,9 @@ class Kernel1Analyzer:
         creative_confused = top.get("second_creative_support", 0.0) <= top.get("second_ignoring_risk", 0.0)
         few_evidence = evidence_count < self.options.min_evidence
 
-        hard_uncertain = no_4d or no_3d or few_evidence or conflicts
+        # 只有 dimension 类冲突（同元素同时像 1D/4D）才是真实不确定；signal 类（信号方向误判）不阻塞赖宁决断
+        real_conflicts = [c for c in conflicts if isinstance(c, dict) and c.get("conflict_kind") != "signal"]
+        hard_uncertain = no_4d or no_3d or few_evidence or bool(real_conflicts)
 
         if not hard_uncertain and margin_small and not score_low and not creative_confused and not insufficiency:
             # 仅 margin 不足：先试赖宁决断
@@ -1046,6 +1092,10 @@ class Kernel1Analyzer:
             "conflicts": conflicts,
             "insufficiency": insufficiency,
             "uncertainty_reasons": self._uncertainty_reasons(top, second, evidence_count, conflicts, insufficiency, laning_result),
+            "refinement": None,
+            "synthesis_pass": None,
+            "arbitration": None,
+            "clarification_request": None,
             "report": "",
         }
 
@@ -1129,11 +1179,193 @@ class Kernel1Analyzer:
             reasons.append("七大二分法全局校验存在张力：" + "；".join(top.get("global_conflicts", [])[:2]))
         if evidence_count < self.options.min_evidence:
             reasons.append(f"有效证据 {evidence_count} 条，少于 {self.options.min_evidence} 条。")
-        if conflicts:
-            reasons.append("存在未解决的证据冲突。")
+        real_conflicts = [c for c in conflicts if isinstance(c, dict) and c.get("conflict_kind") != "signal"]
+        signal_conflicts = [c for c in conflicts if isinstance(c, dict) and c.get("conflict_kind") == "signal"]
+        if real_conflicts:
+            reasons.append(f"存在 {len(real_conflicts)} 条维度矛盾冲突（同元素在不同题目中表现差异极大）。")
+        if signal_conflicts:
+            reasons.append(f"存在 {len(signal_conflicts)} 条信号方向疑似误判（不阻塞决断，仅供参考）。")
         if insufficiency:
             reasons.extend(str(item) for item in insufficiency)
         return reasons
+
+    def _identify_blocking_axis(
+        self,
+        candidates: list[dict[str, Any]],
+        uncertainty_reasons: list[str],
+        extraction: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """
+        识别阻塞判型的核心轴，返回 {"axis", "competing_types", "missing_elements", "blocking_reason"}。
+        决策树优先级：
+        1. top-2 同 1st、2nd 不同 → 2nd 元素对（LIE/LSE → Ni_vs_Si）
+        2. top-2 1st 不同 → 1st 元素对
+        3. second_3d_support == 0 → 2nd_vs_7th
+        4. dimension 类 real conflict → 冲突元素对
+        """
+        if len(candidates) < 2:
+            return None
+        top, second = candidates[0], candidates[1]
+        top_1st = top.get("first_hypothesis", "")
+        top_2nd = top.get("second_hypothesis", "")
+        sec_1st = second.get("first_hypothesis", "")
+        sec_2nd = second.get("second_hypothesis", "")
+        competing = [top["type"], second["type"]]
+
+        # 情况 1：共享同一 1st，2nd 不同（如 LIE=Te-Ni vs LSE=Te-Si）
+        if top_1st and top_1st == sec_1st and top_2nd and sec_2nd and top_2nd != sec_2nd:
+            pair = frozenset({top_2nd, sec_2nd})
+            axis = ELEMENT_PAIR_TO_AXIS.get(pair)
+            if axis:
+                return {
+                    "axis": axis,
+                    "axis_description": AXIS_DESCRIPTIONS.get(axis, axis),
+                    "competing_types": competing,
+                    "missing_elements": sorted({top_2nd, sec_2nd}),
+                    "blocking_reason": f"{competing[0]} 和 {competing[1]} 共享 1st={top_1st}，区分钥匙是 2nd：{top_2nd} vs {sec_2nd}，但当前证据缺少这两个元素。",
+                }
+
+        # 情况 2：1st 不同
+        if top_1st and sec_1st and top_1st != sec_1st:
+            pair = frozenset({top_1st, sec_1st})
+            axis = ELEMENT_PAIR_TO_AXIS.get(pair)
+            if axis:
+                return {
+                    "axis": axis,
+                    "axis_description": AXIS_DESCRIPTIONS.get(axis, axis),
+                    "competing_types": competing,
+                    "missing_elements": sorted({top_1st, sec_1st}),
+                    "blocking_reason": f"主导功能假设分歧：{competing[0]}={top_1st} vs {competing[1]}={sec_1st}，需要更强的 1st 功能证据。",
+                }
+
+        # 情况 3：2nd 功能 3D 证据为 0，无法区分创造 vs 忽略
+        if top.get("second_3d_support", 0.0) == 0.0:
+            return {
+                "axis": "2nd_vs_7th",
+                "axis_description": AXIS_DESCRIPTIONS.get("2nd_vs_7th", "2nd_vs_7th"),
+                "competing_types": competing,
+                "missing_elements": [top_2nd] if top_2nd else [],
+                "blocking_reason": f"无法判断 {top_2nd} 是 2nd 创造（主动/重视）还是 7th 忽略（强但厌倦/非重视）。",
+            }
+
+        # 情况 4：有 dimension 类真实冲突，提取冲突元素对
+        for conflict in extraction.get("conflicts", []):
+            if not isinstance(conflict, dict) or conflict.get("conflict_kind") != "dimension":
+                continue
+            topic = conflict.get("topic", "")
+            if " vs " in topic:
+                parts = topic.split(" vs ")
+                elem1, elem2 = parts[0].strip(), parts[1].strip()
+                pair = frozenset({elem1, elem2})
+                axis = ELEMENT_PAIR_TO_AXIS.get(pair)
+                if axis:
+                    return {
+                        "axis": axis,
+                        "axis_description": AXIS_DESCRIPTIONS.get(axis, axis),
+                        "competing_types": competing,
+                        "missing_elements": sorted({elem1, elem2}),
+                        "blocking_reason": f"维度冲突：{conflict.get('reason', topic)}",
+                    }
+
+        return None
+
+    def _directed_reextract(
+        self,
+        prepared: dict[str, Any],
+        blocking_axis: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """L1 定向重提取：带着阻塞轴问题，让 LLM 重扫全文补充缺失元素的证据。"""
+        prompt_path = BASE_DIR / "prompts" / "directed_extraction.md"
+        if not prompt_path.exists():
+            return None
+        system_prompt = prompt_path.read_text(encoding="utf-8")
+
+        axis_desc = blocking_axis.get("axis_description", blocking_axis.get("axis", ""))
+        missing = blocking_axis.get("missing_elements", [])
+        competing = blocking_axis.get("competing_types", [])
+        full_text = prepared.get("analysis_text", "")
+
+        if prepared.get("mode") == "qa_answers_only":
+            text_label = "问卷回答"
+        else:
+            text_label = "用户文本"
+
+        user_prompt = (
+            f"当前判型卡在：{axis_desc}\n"
+            f"竞争类型：{', '.join(competing)}\n"
+            f"需要重点寻找的元素证据：{', '.join(missing)}\n\n"
+            f"请重新通读以下{text_label}，专门补充与上述元素相关的新证据。"
+            f"只输出与阻塞轴相关的新发现的 quotes（3-6 条），不重复已有证据。只输出 JSON。\n\n"
+            f"{text_label}：\n{full_text}"
+        )
+
+        result = self.llm.chat_json(system_prompt, user_prompt)
+        if not self._is_valid_extraction(result):
+            return None
+        result = self._normalize_extraction(result)
+        result["_source"] = "llm_directed"
+        return result
+
+    def _try_directed_reextract(
+        self,
+        result: dict[str, Any],
+        extraction: dict[str, Any],
+        candidates: list[dict[str, Any]],
+        prepared: dict[str, Any],
+        case_id: str,
+        blocking_axis: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        执行 L1 定向重提取，合并证据，重新打分和判型。
+        返回包含内部状态的 dict：{"_result", "_extraction", "_candidates"}。
+        """
+        extra = self._directed_reextract(prepared, blocking_axis)
+        if not extra or not extra.get("quotes"):
+            return {"_result": result, "_extraction": extraction, "_candidates": candidates}
+
+        # 合并 quotes，按 (quote前30字, element_hint) 去重
+        existing_keys = {
+            (q.get("quote", "")[:30], q.get("element_hint", "")): True
+            for q in extraction.get("quotes", [])
+        }
+        new_quotes = [
+            q for q in extra["quotes"]
+            if (q.get("quote", "")[:30], q.get("element_hint", "")) not in existing_keys
+        ]
+        if not new_quotes:
+            return {"_result": result, "_extraction": extraction, "_candidates": candidates}
+
+        merged_extraction = dict(extraction)
+        merged_extraction["quotes"] = extraction.get("quotes", []) + new_quotes
+        # 合并冲突和不足信息（去重）
+        merged_extraction["conflicts"] = self._dedupe_dicts(
+            extraction.get("conflicts", []) + extra.get("conflicts", []), key="topic"
+        )
+        merged_extraction["insufficiency"] = list(set(
+            extraction.get("insufficiency", []) + extra.get("insufficiency", [])
+        ))[:5]
+
+        new_candidates = self._score_candidates(merged_extraction)
+        new_result = self._build_result(case_id, new_candidates, merged_extraction, prepared)
+        new_result["refinement"] = {
+            "stage": "L1",
+            "axis": blocking_axis.get("axis", ""),
+            "axis_description": blocking_axis.get("axis_description", ""),
+            "competing_types": blocking_axis.get("competing_types", []),
+            "added_quotes": len(new_quotes),
+        }
+        return {"_result": new_result, "_extraction": merged_extraction, "_candidates": new_candidates}
+
+    def _dedupe_dicts(self, items: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
+        """按指定 key 去重 dict 列表。"""
+        seen: set[str] = set()
+        result = []
+        for item in items:
+            k = str(item.get(key, ""))
+            if k not in seen:
+                seen.add(k)
+                result.append(item)
+        return result
 
     def _laning_tiebreak(
         self,
@@ -1184,6 +1416,237 @@ class Kernel1Analyzer:
             "used_signals": used,
         }
 
+    def _synthesis_pass(
+        self,
+        prepared: dict[str, Any],
+        top_candidates: list[dict[str, Any]],
+        extraction: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """L2 综合仲裁：全文喂 LLM 做整体性独立判型，返回 verdict 和 coherence_confidence。"""
+        prompt_path = BASE_DIR / "prompts" / "synthesis_pass.md"
+        if not prompt_path.exists():
+            return None
+        system_prompt = prompt_path.read_text(encoding="utf-8")
+
+        full_text = prepared.get("analysis_text", "")
+        if prepared.get("mode") == "qa_answers_only":
+            text_label = "问卷回答"
+        else:
+            text_label = "用户文本"
+
+        # 构建候选类型摘要
+        candidate_blocks = []
+        for cand in top_candidates[:3]:
+            t = cand["type"]
+            meta = self.model_a.get(t, {})
+            model_a_str = "、".join(meta.get("model_a", []))
+            matches = cand.get("rule_matches", [])[:3]
+            conflicts = cand.get("rule_conflicts", [])[:3]
+            global_conflicts = cand.get("global_conflicts", [])[:2]
+            block = (
+                f"候选 {t}（{meta.get('alias', '')}，{meta.get('quadra', '')}象限）"
+                f"Model A: {model_a_str} | "
+                f"算法分: {cand['score']:.3f}，4D证据: {cand.get('first_4d_support', 0):.3f}，3D证据: {cand.get('second_3d_support', 0):.3f} | "
+                f"匹配: {'; '.join(matches) or '无'} | 冲突: {'; '.join(conflicts + global_conflicts) or '无'}"
+            )
+            candidate_blocks.append(block)
+
+        # 已提取证据摘要
+        quotes_summary = "\n".join(
+            f"- {q.get('quote', '')}（{q.get('element_hint')}/{q.get('dimension_hint')}）"
+            for q in extraction.get("quotes", [])[:8]
+        )
+
+        user_prompt = (
+            f"【{text_label}（全文）】\n{full_text}\n\n"
+            f"【已提取的关键证据】\n{quotes_summary or '无'}\n\n"
+            f"【算法候选类型】\n" + "\n".join(candidate_blocks) +
+            "\n\n请从整体上判断这段文字最符合哪个类型，输出 JSON。"
+        )
+
+        result = self.llm.chat_json(system_prompt, user_prompt)
+        if not isinstance(result, dict) or "verdict_type" not in result:
+            return None
+        if result["verdict_type"] not in self.model_a:
+            return None
+        result["coherence_confidence"] = self._bounded_float(result.get("coherence_confidence"), 0.0)
+        return result
+
+    def _arbitrate(
+        self,
+        result: dict[str, Any],
+        candidates: list[dict[str, Any]],
+        synthesis: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """
+        三方仲裁：算法 top、赖宁决断（若有）、综合层（若有）。
+        直接修改 result 的 status/type/alias/quadra，并写入 synthesis_pass 和 arbitration 字段。
+        """
+        if synthesis is None:
+            result["synthesis_pass"] = None
+            result["arbitration"] = None
+            return result
+
+        result["synthesis_pass"] = synthesis
+        verdict = synthesis.get("verdict_type")
+        coherence_conf = synthesis.get("coherence_confidence", 0.0)
+
+        algo_top = candidates[0]["type"] if candidates else None
+        algo_second = candidates[1]["type"] if len(candidates) > 1 else None
+        algo_top3 = {c["type"] for c in candidates[:3]}
+        laning_winner = result.get("laning_tiebreak", {})
+        laning_type = laning_winner.get("winner", {}).get("type") if isinstance(laning_winner, dict) else None
+
+        voters = {
+            "algorithm": algo_top,
+            "laning": laning_type,
+            "synthesis": verdict,
+        }
+        decision = "uncertain"
+        reason = ""
+
+        if coherence_conf >= 0.75:
+            if verdict == algo_top:
+                decision = "certain"
+                reason = f"综合层高置信度（{coherence_conf:.2f}）背书算法 top {verdict}。"
+            elif verdict == algo_second:
+                # 综合层推翻算法排序：采纳 verdict
+                decision = "certain_synthesis_override"
+                reason = f"综合层高置信度（{coherence_conf:.2f}），推翻算法排序，采纳 {verdict} 而非算法 top {algo_top}。"
+            elif verdict not in algo_top3:
+                decision = "uncertain"
+                reason = f"综合层 verdict={verdict} 不在算法 top-3 内，不采信，维持不确定。"
+            else:
+                decision = "certain"
+                reason = f"综合层高置信度（{coherence_conf:.2f}），verdict={verdict} 在 top-3 内，采纳。"
+        elif 0.5 <= coherence_conf < 0.75:
+            if verdict == algo_top:
+                decision = "certain"
+                reason = f"综合层弱背书（{coherence_conf:.2f}）与算法一致，合并确定为 {verdict}。"
+            else:
+                decision = "uncertain"
+                reason = f"综合层置信度 {coherence_conf:.2f} 不足且与算法分歧，维持不确定。"
+        else:
+            decision = "uncertain"
+            reason = f"综合层置信度 {coherence_conf:.2f} 过低，不采信。"
+
+        result["arbitration"] = {"voters": voters, "decision": decision, "reason": reason}
+
+        if decision in {"certain", "certain_synthesis_override"}:
+            final_type = verdict if decision == "certain_synthesis_override" else (verdict if verdict == algo_top else verdict)
+            meta = self.model_a.get(final_type, {})
+            result["status"] = "certain"
+            result["type"] = final_type
+            result["alias"] = meta.get("alias")
+            result["quadra"] = meta.get("quadra")
+            result["model_a"] = meta.get("model_a", [])
+
+        return result
+
+    def _generate_clarification(
+        self,
+        blocking_axis: dict[str, Any],
+        candidates: list[dict[str, Any]],
+        extraction: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """L3 打回用户：LLM 动态生成定向追问，返回 clarification_request dict。"""
+        axis = blocking_axis.get("axis", "")
+        axis_desc = blocking_axis.get("axis_description", axis)
+        competing = blocking_axis.get("competing_types", [])
+        blocking_reason = blocking_axis.get("blocking_reason", "")
+
+        questions: list[str] = []
+
+        # 优先尝试 LLM 动态生成
+        prompt_path = BASE_DIR / "prompts" / "clarification_generator.md"
+        if prompt_path.exists() and self.llm.config.enabled:
+            system_prompt = prompt_path.read_text(encoding="utf-8")
+            type1 = competing[0] if len(competing) > 0 else "?"
+            type2 = competing[1] if len(competing) > 1 else "?"
+            meta1 = self.model_a.get(type1, {})
+            meta2 = self.model_a.get(type2, {})
+            conflict_reasons = [
+                str(c.get("reason", "")) for c in extraction.get("conflicts", [])[:3]
+                if isinstance(c, dict)
+            ]
+
+            user_prompt = (
+                f"竞争类型：{type1}（{meta1.get('alias', '')}）vs {type2}（{meta2.get('alias', '')}）\n"
+                f"阻塞轴：{axis_desc}\n"
+                f"{type1} Model A: {'、'.join(meta1.get('model_a', []))}\n"
+                f"{type2} Model A: {'、'.join(meta2.get('model_a', []))}\n"
+                f"已知证据冲突：{'; '.join(conflict_reasons) or '无'}\n"
+                f"阻塞原因：{blocking_reason}\n\n"
+                f"请生成 2-3 个能区分这两个竞争类型的定向追问，输出 JSON：{{\"questions\": [\"...\", \"...\", \"...\"]}}"
+            )
+
+            llm_result = self.llm.chat_json(system_prompt, user_prompt)
+            if isinstance(llm_result, dict) and isinstance(llm_result.get("questions"), list):
+                questions = [str(q) for q in llm_result["questions"][:3] if q and str(q).strip()]
+
+        # 失败时用轴描述拼通用问题
+        if not questions:
+            questions = [
+                f"关于以下方面，能描述一个具体的场景或感受吗？{axis_desc[:50]}",
+            ]
+
+        return {
+            "axis": axis,
+            "axis_description": axis_desc,
+            "competing_types": competing,
+            "questions": questions,
+            "blocking_reason": blocking_reason,
+        }
+
+    def _refine(
+        self,
+        result: dict[str, Any],
+        extraction: dict[str, Any],
+        candidates: list[dict[str, Any]],
+        prepared: dict[str, Any],
+        case_id: str,
+    ) -> dict[str, Any]:
+        """
+        三级审理编排（L1→L2→L3）。
+        只在 status==uncertain 且 LLM 可用时运行。
+        返回可能已升为 certain 或 clarifying 的 result。
+        """
+        if result["status"] != "uncertain":
+            return result
+        if not self.llm.config.enabled:
+            return result
+
+        blocking = self._identify_blocking_axis(candidates, result.get("uncertainty_reasons", []), extraction)
+
+        # L1：定向重提取
+        if blocking:
+            l1_out = self._try_directed_reextract(result, extraction, candidates, prepared, case_id, blocking)
+            l1_result = l1_out["_result"]
+            if l1_result["status"] == "certain":
+                l1_result["report"] = self._render_report(l1_result)
+                return l1_result
+            # 带入 L2，用 L1 的合并结果
+            result = l1_result
+            extraction = l1_out["_extraction"]
+            candidates = l1_out["_candidates"]
+
+        # L2：综合仲裁
+        synthesis = self._synthesis_pass(prepared, candidates[:3], extraction)
+        result = self._arbitrate(result, candidates, synthesis)
+        if result["status"] == "certain":
+            result["report"] = self._render_report(result)
+            return result
+
+        # L3：打回用户
+        if blocking:
+            clar = self._generate_clarification(blocking, candidates, extraction)
+            if clar:
+                result["status"] = "clarifying"
+                result["clarification_request"] = clar
+
+        result["report"] = self._render_report(result)
+        return result
+
     def _follow_up_questions(self, result: dict[str, Any]) -> list[str]:
         candidates = result.get("candidates", [])
         if len(candidates) < 2:
@@ -1204,7 +1667,8 @@ class Kernel1Analyzer:
         return questions[:4]
 
     def _render_report(self, result: dict[str, Any]) -> str:
-        status_cn = "确定" if result["status"] == "certain" else "不确定"
+        status_map = {"certain": "确定", "uncertain": "不确定", "clarifying": "待澄清", "rejected": "拒绝"}
+        status_cn = status_map.get(result["status"], result["status"])
         candidates_text = "、".join(
             f"{item['type']}({item['score']:.3f})" for item in result.get("candidates", [])
         )
@@ -1270,10 +1734,20 @@ class Kernel1Analyzer:
             if line not in uncertain_lines:
                 uncertain_lines.append(line)
         for item in result.get("conflicts", []):
-            uncertain_lines.append(f"- 冲突：{item.get('reason', item)}")
+            kind = item.get("conflict_kind", "dimension") if isinstance(item, dict) else "dimension"
+            kind_label = "维度矛盾" if kind == "dimension" else "信号疑似误判"
+            reason = item.get("reason", str(item)) if isinstance(item, dict) else str(item)
+            uncertain_lines.append(f"- [{kind_label}] {reason}")
         if not uncertain_lines:
             uncertain_lines.append("- 暂无明显冲突；后续可补充压力场景、人际距离、效率处理方式。")
-        follow_up_lines = [f"- {question}" for question in self._follow_up_questions(result)]
+
+        # 定向追问（L3 结果优先，否则回退通用问题）
+        clar = result.get("clarification_request")
+        if clar and clar.get("questions"):
+            follow_up_lines = [f"- {q}" for q in clar["questions"]]
+            follow_up_lines.insert(0, f"- 【阻塞轴：{clar.get('axis_description', clar.get('axis', ''))}】")
+        else:
+            follow_up_lines = [f"- {question}" for question in self._follow_up_questions(result)]
         if not follow_up_lines:
             follow_up_lines.append("- 暂无追问建议。")
 
@@ -1293,8 +1767,35 @@ class Kernel1Analyzer:
                 ind_sources.append(f"{ind}→{item.get('element_hint', '?')}/{item.get('dimension_hint', '?')}")
         ind_line = f"- 命中 IND 指标：{', '.join(ind_sources)}" if ind_sources else "- 未命中具名 IND 指标（或使用关键词规则）。"
 
+        # 精化层标注
+        refinement = result.get("refinement")
+        refinement_note = ""
+        if refinement:
+            stage = refinement.get("stage", "")
+            added = refinement.get("added_quotes", 0)
+            axis = refinement.get("axis", "")
+            refinement_note = f"（经 {stage} 定向重提取{f'，轴={axis}' if axis else ''}，补充 {added} 条证据）"
+
+        # 综合仲裁展示
+        synthesis_lines = []
+        synthesis = result.get("synthesis_pass")
+        arbitration = result.get("arbitration")
+        if synthesis:
+            synthesis_lines.append(
+                f"- 综合推理判断：{synthesis.get('verdict_type', '?')}，"
+                f"置信度 {synthesis.get('coherence_confidence', 0):.2f}"
+            )
+            if synthesis.get("narrative"):
+                synthesis_lines.append(f"  理由：{synthesis['narrative']}")
+            if synthesis.get("why_not_competitor"):
+                synthesis_lines.append(f"  排除 {synthesis.get('main_competitor', '?')}：{synthesis['why_not_competitor']}")
+        if arbitration:
+            synthesis_lines.append(
+                f"- 三方仲裁决策：{arbitration.get('decision', '?')}，原因：{arbitration.get('reason', '')}"
+            )
+
         sections = [
-            f"1. **判型状态**：{status_cn}",
+            f"1. **判型状态**：{status_cn}{refinement_note}",
             f"2. **类型结论**：{conclusion}",
             "3. **输入预处理**：",
             preprocess_line,
@@ -1308,6 +1809,9 @@ class Kernel1Analyzer:
         ]
         if laning_line:
             sections.append(laning_line)
+        if synthesis_lines:
+            sections.append("6.5. **综合推理层**：")
+            sections.extend(synthesis_lines)
         sections += [
             f"7. **完整 Model A 架构图**：{model_a_text}",
             "8. **不确定点与建议追问**：",

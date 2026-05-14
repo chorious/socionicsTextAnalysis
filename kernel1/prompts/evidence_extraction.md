@@ -4,9 +4,9 @@
 
 只输出一个合法 JSON 对象。禁止 Markdown，禁止解释，禁止代码块，禁止在 JSON 前后增加任何文字。
 
-输出必须非常短，避免被截断：
+输出要求：
 
-- `quotes` 最多 4 条，只保留最能锁定 1st/2nd 的证据。
+- `quotes` 输出 **8-12 条**，尽量覆盖 Ne/Ni/Se/Si/Te/Ti/Fe/Fi 八个元素，**至少覆盖 N/S/T/F 四个维度各 1 条**。若某维度文本中无直接证据，在 `insufficiency` 里标注缺失的维度。
 - 每条 `quote` 不超过 50 个中文字符。
 - 每条 `reason` 不超过 20 个中文字符。
 - `evidence` 每项不超过 30 个中文字符，最多 2 项。
@@ -42,7 +42,11 @@
   - 引导/分离：持续追踪、追求稳定=guide；单独工作、随意/慎重=separate。
   - 意识/生机：鲜明外显、处理新信息=mental；自动化、后台、熟悉信息=vital。
   - 重视/非重视：舒适、愿意讨论=valued；回避、厌倦、压力源=unvalued。
-- 如果同一元素同时像 1D 和 4D，必须写入 `conflicts`。
+- 如果同一元素同时像 1D 和 4D，必须写入 `conflicts`，`conflict_kind` 标为 `"dimension"`。
+- 如果某个信号方向（如 accepting/producing）判断不确定，写入 `conflicts`，`conflict_kind` 标为 `"signal"`。
+- accepting/producing 信号的核心判断准则：
+  - 当某元素表现为"全天候自然滤镜/我即是此元素"（IND F1-A、IND TM-A）时，`accepting_signal` 标 `accepting`，不能因"看起来在做决策"就标 `producing`。
+  - `producing` 只在"主动生成目标、设定工具、感到工作紧迫"时使用。例如：Te 在 1st 位置是接受外部信息后内部处理（accepting），不是主动生产（producing）。
 
 - `indicator` 必须是以下合法 IND 代码之一（或留空字符串）：
   `IND TM-A`、`IND F1-A`、`IND MN-A`、`IND MN-C`、`IND VT-A`、`IND VT-B`、`IND VT-F`、
@@ -93,7 +97,8 @@ JSON 结构：
     {
       "topic": "冲突点",
       "evidence": ["原话1", "原话2"],
-      "reason": "为什么冲突"
+      "reason": "为什么冲突",
+      "conflict_kind": "dimension"
     }
   ],
   "insufficiency": ["缺少哪些判型信息"]
