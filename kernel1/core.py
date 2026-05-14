@@ -337,15 +337,15 @@ class Kernel1Analyzer:
             if len(raw_normalized.get("quotes", [])) > 8:
                 synthesized = self._synthesize_evidence(raw_normalized, prepared)
                 if synthesized:
-                    return synthesized
+                    return self._ensure_qa_evidence_coverage(synthesized, prepared)
             raw_normalized["_source"] = "llm"
-            return raw_normalized
+            return self._ensure_qa_evidence_coverage(raw_normalized, prepared)
         fallback = self._heuristic_extract(text)
         fallback["_source"] = "heuristic"
         fallback["_llm_error"] = self.llm.last_error
         fallback["_llm_raw_path"] = getattr(self.llm, "last_raw_path", None)
         fallback["_llm_request"] = getattr(self.llm, "last_request_meta", None)
-        return fallback
+        return self._ensure_qa_evidence_coverage(fallback, prepared)
 
     def _is_valid_extraction(self, data: Any) -> bool:
         return isinstance(data, dict) and isinstance(data.get("quotes"), list)
@@ -440,6 +440,103 @@ class Kernel1Analyzer:
                     cleaned_laning[key] = {"lean": lean_val, "confidence": conf, "evidence": evidence}
         data["laning_signals"] = cleaned_laning
         return data
+
+    def _ensure_qa_evidence_coverage(
+        self, extraction: dict[str, Any], prepared: dict[str, Any]
+    ) -> dict[str, Any]:
+        if prepared.get("mode") != "qa_answers_only":
+            return extraction
+
+        qa_items = prepared.get("qa_items", [])
+        if not qa_items:
+            return extraction
+
+        covered_extraction = dict(extraction)
+        quotes = self._attach_qa_context_to_quotes(covered_extraction.get("quotes", []), prepared)
+        covered_indexes = {q.get("qa_index") for q in quotes if isinstance(q.get("qa_index"), int)}
+        for index, item in enumerate(qa_items, start=1):
+            if index in covered_indexes:
+                continue
+            answer = str(item.get("answer", "")).strip()
+            if not answer:
+                continue
+            quotes.append(
+                {
+                    "quote": self._answer_excerpt(answer),
+                    "indicator": "qa_coverage",
+                    "element_hint": "unknown",
+                    "dimension_hint": "unknown",
+                    "position_hint": None,
+                    "confidence": 0.2,
+                    "strength_signal": "unknown",
+                    "valued_signal": "unknown",
+                    "mental_signal": "unknown",
+                    "accepting_signal": "unknown",
+                    "contact_signal": "unknown",
+                    "guide_signal": "unknown",
+                    "evidence_type": "keyword",
+                    "reason": "QA coverage fallback",
+                    "qa_index": index,
+                    "qa_question": str(item.get("question", ""))[:90],
+                    "_coverage_fallback": True,
+                }
+            )
+
+        target_count = self._evidence_target_count(prepared)
+        covered_extraction["quotes"] = self._select_final_quotes(quotes, target_count=target_count, prepared=prepared)
+        covered_extraction["_qa_coverage"] = {
+            "covered": len({q.get("qa_index") for q in covered_extraction["quotes"] if isinstance(q.get("qa_index"), int)}),
+            "total": len(qa_items),
+        }
+        return covered_extraction
+
+    def _attach_qa_context_to_quotes(
+        self, quotes: list[dict[str, Any]], prepared: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        if prepared.get("mode") != "qa_answers_only":
+            return [dict(q) for q in quotes]
+
+        qa_items = prepared.get("qa_items", [])
+        annotated: list[dict[str, Any]] = []
+        for q in quotes:
+            new_q = dict(q)
+            qa_index = new_q.get("qa_index")
+            if not isinstance(qa_index, int):
+                qa_index = self._match_quote_to_qa_index(str(new_q.get("quote", "")), qa_items)
+            if isinstance(qa_index, int) and 1 <= qa_index <= len(qa_items):
+                new_q["qa_index"] = qa_index
+                new_q.setdefault("qa_question", str(qa_items[qa_index - 1].get("question", ""))[:90])
+            annotated.append(new_q)
+        return annotated
+
+    def _match_quote_to_qa_index(self, quote: str, qa_items: list[dict[str, str]]) -> int | None:
+        quote_key = self._match_key(quote)
+        if len(quote_key) < 8:
+            return None
+
+        best_index: int | None = None
+        best_score = 0
+        for index, item in enumerate(qa_items, start=1):
+            answer_key = self._match_key(str(item.get("answer", "")))
+            if not answer_key:
+                continue
+            if quote_key in answer_key:
+                score = len(quote_key)
+            elif answer_key[: min(len(answer_key), 40)] in quote_key:
+                score = min(len(answer_key), 40)
+            else:
+                score = 0
+            if score > best_score:
+                best_score = score
+                best_index = index
+        return best_index if best_score >= 8 else None
+
+    def _match_key(self, text: str) -> str:
+        return re.sub(r"\s+", "", text).lower()
+
+    def _answer_excerpt(self, answer: str) -> str:
+        compact = re.sub(r"\s+", " ", answer).strip()
+        return compact[:90]
 
     def _allowed_value(self, value: Any, allowed: set[str]) -> str:
         return value if isinstance(value, str) and value in allowed else "unknown"
@@ -1345,7 +1442,8 @@ class Kernel1Analyzer:
                 relabeled_quotes.append(dict(q))
 
         # 代码侧筛选 8 条
-        final_quotes = self._select_final_quotes(relabeled_quotes, target_count=8)
+        target_count = self._evidence_target_count(prepared)
+        final_quotes = self._select_final_quotes(relabeled_quotes, target_count=target_count, prepared=prepared)
 
         return {
             "quotes": final_quotes,
@@ -1360,9 +1458,48 @@ class Kernel1Analyzer:
             "insufficiency": raw_extraction.get("insufficiency", []),
         }
 
-    def _select_final_quotes(self, quotes: list[dict[str, Any]], target_count: int = 8) -> list[dict[str, Any]]:
+    def _evidence_target_count(self, prepared: dict[str, Any]) -> int:
+        if prepared.get("mode") == "qa_answers_only":
+            return min(30, max(8, int(prepared.get("qa_count") or 0)))
+        return 8
+
+    def _quote_priority(self, q: dict[str, Any]) -> float:
+        ind_bonus = 1.5 if str(q.get("indicator", "")).startswith("IND") else 1.0
+        conf = float(q.get("confidence") or 0.5)
+        coverage_bonus = 0.25 if q.get("qa_index") is not None else 0.0
+        fallback_penalty = -0.2 if q.get("_coverage_fallback") else 0.0
+        return ind_bonus * conf + coverage_bonus + fallback_penalty
+
+    def _select_final_quotes(
+        self,
+        quotes: list[dict[str, Any]],
+        target_count: int = 8,
+        prepared: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
         """代码侧鱼谪技：按元素分组，IND 命中优先，每组最多 2 条，先凑覆盖再补高分。"""
         from collections import defaultdict
+        quotes = self._attach_qa_context_to_quotes(quotes, prepared or {})
+        if prepared and prepared.get("mode") == "qa_answers_only":
+            by_qa: dict[int, list[dict[str, Any]]] = defaultdict(list)
+            for q in quotes:
+                qa_index = q.get("qa_index")
+                if isinstance(qa_index, int):
+                    by_qa[qa_index].append(q)
+
+            selected_by_qa: list[dict[str, Any]] = []
+            selected_ids: set[int] = set()
+            for qa_index in sorted(by_qa):
+                best = sorted(by_qa[qa_index], key=self._quote_priority, reverse=True)[0]
+                selected_by_qa.append(best)
+                selected_ids.add(id(best))
+
+            leftovers_by_qa = [q for q in quotes if id(q) not in selected_ids]
+            leftovers_by_qa.sort(key=self._quote_priority, reverse=True)
+            if len(selected_by_qa) < target_count:
+                selected_by_qa.extend(leftovers_by_qa[: target_count - len(selected_by_qa)])
+            selected_by_qa.sort(key=lambda q: (q.get("qa_index") is None, q.get("qa_index") or 0, -self._quote_priority(q)))
+            return selected_by_qa[:target_count]
+
         by_element: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for q in quotes:
             elem = q.get("element_hint", "unknown")
@@ -1906,6 +2043,12 @@ class Kernel1Analyzer:
         )
         return questions[:4]
 
+    def _evidence_report_limit(self, result: dict[str, Any]) -> int:
+        preprocess = result.get("preprocess", {})
+        if preprocess.get("mode") == "qa_answers_only":
+            return min(30, max(6, int(preprocess.get("qa_count") or 0)))
+        return 6
+
     def _render_report(self, result: dict[str, Any]) -> str:
         status_map = {"certain": "确定", "uncertain": "不确定", "clarifying": "待澄清", "rejected": "拒绝"}
         status_cn = status_map.get(result["status"], result["status"])
@@ -1920,8 +2063,13 @@ class Kernel1Analyzer:
             model_a_text = "判型不确定，暂不输出单一 Model A。"
 
         evidence_lines = []
-        for item in result.get("evidence_chain", [])[:6]:
+        evidence_limit = self._evidence_report_limit(result)
+        for item in result.get("evidence_chain", [])[:evidence_limit]:
             extra_bits = []
+            if item.get("qa_index"):
+                extra_bits.append(f"Q{item.get('qa_index')}")
+            if item.get("_coverage_fallback"):
+                extra_bits.append("coverage")
             if item.get("strength_signal") and item.get("strength_signal") != "unknown":
                 extra_bits.append(f"强弱={item.get('strength_signal')}")
             if item.get("valued_signal") and item.get("valued_signal") != "unknown":
