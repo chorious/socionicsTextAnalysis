@@ -355,15 +355,22 @@ class Kernel1Analyzer:
             first_leading_support = self._position_profile_support(first_summary, 1)
             second_creative_support = self._position_profile_support(second_summary, 2)
             second_ignoring_risk = self._position_profile_support(second_summary, 7)
+            first_4d_support = float(first_summary.get("4D", 0.0))
+            first_axis_score = first_4d_support + 0.35 * first_leading_support
 
             raw_scores[type_code] += 1.2 * first_leading_support
             raw_scores[type_code] += 1.4 * second_creative_support
             raw_scores[type_code] -= 0.7 * second_ignoring_risk
+            if first_4d_support <= 0:
+                raw_scores[type_code] -= 1.2
+            elif first_4d_support < 0.4:
+                raw_scores[type_code] -= 0.6
 
             details[type_code] = {
                 "first_hypothesis": first_element,
                 "second_hypothesis": second_element,
-                "first_4d_support": round(float(first_summary.get("4D", 0.0)), 3),
+                "first_4d_support": round(first_4d_support, 3),
+                "first_axis_score": round(first_axis_score, 3),
                 "second_3d_support": round(float(second_summary.get("3D", 0.0)), 3),
                 "first_leading_support": round(first_leading_support, 3),
                 "second_creative_support": round(second_creative_support, 3),
@@ -489,6 +496,8 @@ class Kernel1Analyzer:
             normalized = max(0.0, min(1.0, score / max_possible + 0.2))
             rule_conflicts = self._dedupe(details[type_code]["rule_conflicts"])
             rule_matches = self._dedupe(details[type_code]["rule_matches"])
+            if details[type_code]["first_4d_support"] <= 0:
+                normalized = min(normalized, 0.58)
             ranked.append(
                 {
                     "type": type_code,
@@ -496,6 +505,7 @@ class Kernel1Analyzer:
                     "first_hypothesis": details[type_code]["first_hypothesis"],
                     "second_hypothesis": details[type_code]["second_hypothesis"],
                     "first_4d_support": details[type_code]["first_4d_support"],
+                    "first_axis_score": details[type_code]["first_axis_score"],
                     "second_3d_support": details[type_code]["second_3d_support"],
                     "first_leading_support": details[type_code]["first_leading_support"],
                     "second_creative_support": details[type_code]["second_creative_support"],
@@ -508,7 +518,15 @@ class Kernel1Analyzer:
                     "hard_conflict_count": len(rule_conflicts),
                 }
             )
-        return sorted(ranked, key=lambda item: item["score"], reverse=True)
+        return sorted(
+            ranked,
+            key=lambda item: (
+                item["first_4d_support"] > 0,
+                item["first_axis_score"],
+                item["score"],
+            ),
+            reverse=True,
+        )
 
     def _global_model_checks(self, type_code: str, summary: dict[str, dict[str, float]]) -> tuple[float, list[str], list[str]]:
         meta = self.model_a[type_code]
@@ -843,6 +861,7 @@ class Kernel1Analyzer:
                     "first_hypothesis": candidate.get("first_hypothesis"),
                     "second_hypothesis": candidate.get("second_hypothesis"),
                     "first_4d_support": candidate.get("first_4d_support", 0.0),
+                    "first_axis_score": candidate.get("first_axis_score", 0.0),
                     "second_3d_support": candidate.get("second_3d_support", 0.0),
                     "second_creative_support": candidate.get("second_creative_support", 0.0),
                     "second_ignoring_risk": candidate.get("second_ignoring_risk", 0.0),
@@ -966,6 +985,7 @@ class Kernel1Analyzer:
                 f"- {item['type']}({item['score']:.3f})：1st={item.get('first_hypothesis')}，"
                 f"2nd={item.get('second_hypothesis')}；"
                 f"4D主导证据={item.get('first_4d_support', 0):.3f}，"
+                f"1st主轴分={item.get('first_axis_score', 0):.3f}，"
                 f"3D证据={item.get('second_3d_support', 0):.3f}，"
                 f"2nd创造支持={item.get('second_creative_support', 0):.3f}，"
                 f"7th忽略风险={item.get('second_ignoring_risk', 0):.3f}；"
