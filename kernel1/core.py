@@ -331,6 +331,10 @@ class Kernel1Analyzer:
                 f"用户文本：\n{text}"
             )
         llm_result = self.llm.chat_json(self.extraction_prompt, user_prompt)
+        if not self._is_valid_extraction(llm_result):
+            repaired = self._repair_extraction_schema(llm_result, prepared)
+            if self._is_valid_extraction(repaired):
+                llm_result = repaired
         if self._is_valid_extraction(llm_result):
             raw_normalized = self._normalize_extraction(llm_result)
             if isinstance(llm_result, dict) and llm_result.get("_llm_error"):
@@ -349,10 +353,55 @@ class Kernel1Analyzer:
         fallback["_llm_error"] = self.llm.last_error
         fallback["_llm_raw_path"] = getattr(self.llm, "last_raw_path", None)
         fallback["_llm_request"] = getattr(self.llm, "last_request_meta", None)
+        if isinstance(llm_result, dict) and isinstance(llm_result.get("quotes"), list):
+            fallback["_schema_invalid"] = True
+            fallback["_llm_error"] = "LLM returned invalid extraction schema"
         return self._ensure_qa_evidence_coverage(fallback, prepared)
 
     def _is_valid_extraction(self, data: Any) -> bool:
-        return isinstance(data, dict) and isinstance(data.get("quotes"), list)
+        return (
+            isinstance(data, dict)
+            and isinstance(data.get("quotes"), list)
+            and any(isinstance(item, dict) for item in data.get("quotes", []))
+        )
+
+    def _repair_extraction_schema(
+        self, data: Any, prepared: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        if not self.llm.config.enabled:
+            return None
+        if not isinstance(data, dict) or not isinstance(data.get("quotes"), list):
+            return None
+        if any(isinstance(item, dict) for item in data.get("quotes", [])):
+            return None
+
+        raw_quotes = [str(item)[:180] for item in data.get("quotes", [])[:30] if str(item).strip()]
+        if not raw_quotes:
+            return None
+
+        system_prompt = (
+            "你是 Socionics Kernel1 的 JSON schema 修复器。"
+            "输入的 quotes 是字符串数组，必须改写为标准 quote 对象数组。"
+            "只输出合法 JSON，不要 Markdown。"
+        )
+        qa_hint = ""
+        if prepared.get("mode") == "qa_answers_only":
+            qa_hint = "\n问答索引可从原文的“回答N:”推断；无法确定则不要填写 qa_index。"
+        user_prompt = (
+            "请把这些原始 quote 字符串转换成结构化 Socionics evidence quotes。"
+            "每条必须包含 quote/indicator/element_hint/dimension_hint/position_hint/confidence/"
+            "strength_signal/valued_signal/mental_signal/accepting_signal/contact_signal/"
+            "guide_signal/evidence_type/reason。"
+            "element_hint 只能是 Ne/Ni/Se/Si/Te/Ti/Fe/Fi/unknown；"
+            "dimension_hint 只能是 1D/2D/3D/4D/unknown。"
+            "如果无法可靠判断元素或维度，宁可少输出，不要输出 unknown 占位。"
+            f"{qa_hint}\n\n原始 quotes:\n{json.dumps(raw_quotes, ensure_ascii=False)}\n\n"
+            f"上下文节选:\n{prepared.get('analysis_text', '')[:3000]}"
+        )
+        repaired = self.llm.chat_json(system_prompt, user_prompt)
+        if isinstance(repaired, dict):
+            repaired["_source"] = "llm_schema_repaired"
+        return repaired
 
     def _normalize_extraction(self, data: dict[str, Any]) -> dict[str, Any]:
         allowed_elements = {"Ne", "Ni", "Se", "Si", "Te", "Ti", "Fe", "Fi", "unknown"}
@@ -458,40 +507,26 @@ class Kernel1Analyzer:
         covered_extraction = dict(extraction)
         quotes = self._attach_qa_context_to_quotes(covered_extraction.get("quotes", []), prepared)
         covered_indexes = {q.get("qa_index") for q in quotes if isinstance(q.get("qa_index"), int)}
+        missing_indexes: list[int] = []
         for index, item in enumerate(qa_items, start=1):
             if index in covered_indexes:
                 continue
             answer = str(item.get("answer", "")).strip()
             if not answer:
                 continue
-            quotes.append(
-                {
-                    "quote": self._answer_excerpt(answer),
-                    "indicator": "qa_coverage",
-                    "element_hint": "unknown",
-                    "dimension_hint": "unknown",
-                    "position_hint": None,
-                    "confidence": 0.2,
-                    "strength_signal": "unknown",
-                    "valued_signal": "unknown",
-                    "mental_signal": "unknown",
-                    "accepting_signal": "unknown",
-                    "contact_signal": "unknown",
-                    "guide_signal": "unknown",
-                    "evidence_type": "keyword",
-                    "reason": "QA coverage fallback",
-                    "qa_index": index,
-                    "qa_question": str(item.get("question", ""))[:90],
-                    "_coverage_fallback": True,
-                }
-            )
+            missing_indexes.append(index)
 
         target_count = self._evidence_target_count(prepared)
         covered_extraction["quotes"] = self._select_final_quotes(quotes, target_count=target_count, prepared=prepared)
         covered_extraction["_qa_coverage"] = {
             "covered": len({q.get("qa_index") for q in covered_extraction["quotes"] if isinstance(q.get("qa_index"), int)}),
             "total": len(qa_items),
+            "missing_indexes": missing_indexes,
         }
+        if missing_indexes:
+            insufficiency = list(covered_extraction.get("insufficiency", []))
+            insufficiency.append(f"问答覆盖不足：缺少 Q{', Q'.join(str(i) for i in missing_indexes[:12])} 的结构化证据")
+            covered_extraction["insufficiency"] = insufficiency[:6]
         return covered_extraction
 
     def _attach_qa_context_to_quotes(
@@ -1169,7 +1204,8 @@ class Kernel1Analyzer:
         # 只有 dimension 类冲突（同元素同时像 1D/4D）才是真实不确定；signal 类（信号方向误判）不阻塞赖宁决断
         real_conflicts = [c for c in conflicts if isinstance(c, dict) and c.get("conflict_kind") != "signal"]
         partial_recovered = self._is_partial_recovered(extraction)
-        hard_uncertain = no_4d or no_3d or few_evidence or bool(real_conflicts) or partial_recovered
+        schema_invalid = bool(extraction.get("_schema_invalid"))
+        hard_uncertain = no_4d or no_3d or few_evidence or bool(real_conflicts) or partial_recovered or schema_invalid
 
         if not hard_uncertain and margin_small and not score_low and not creative_confused and not insufficiency:
             # 仅 margin 不足：先试赖宁决断
@@ -1210,6 +1246,7 @@ class Kernel1Analyzer:
             "llm_error": extraction.get("_llm_error"),
             "llm_raw_path": extraction.get("_llm_raw_path"),
             "llm_request": extraction.get("_llm_request"),
+            "schema_invalid": schema_invalid,
             "dichotomy_signals": extraction.get("dichotomy_signals", {}),
             "laning_signals": laning_signals,
             "laning_tiebreak": laning_result,
@@ -2007,6 +2044,19 @@ class Kernel1Analyzer:
         if result["status"] != "uncertain":
             return result
         if not self.llm.config.enabled:
+            return result
+        typed_evidence_count = sum(
+            1 for q in extraction.get("quotes", [])
+            if q.get("element_hint") not in {"unknown", None}
+            and q.get("dimension_hint") not in {"unknown", None}
+        )
+        if extraction.get("_schema_invalid") or typed_evidence_count < self.options.min_evidence:
+            result["refinement"] = {
+                "stage": "blocked",
+                "reason": "结构化证据不足，跳过 L1/L2 以避免 unknown 或漂移证据污染评分。",
+                "typed_evidence_count": typed_evidence_count,
+            }
+            result["report"] = self._render_report(result)
             return result
 
         blocking = self._identify_blocking_axis(candidates, result.get("uncertainty_reasons", []), extraction)
