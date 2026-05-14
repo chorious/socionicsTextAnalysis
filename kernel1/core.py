@@ -332,9 +332,14 @@ class Kernel1Analyzer:
             )
         llm_result = self.llm.chat_json(self.extraction_prompt, user_prompt)
         if self._is_valid_extraction(llm_result):
-            llm_result = self._normalize_extraction(llm_result)
-            llm_result["_source"] = "llm"
-            return llm_result
+            raw_normalized = self._normalize_extraction(llm_result)
+            # 阶段 2：超过 8 条时调用整合精炼
+            if len(raw_normalized.get("quotes", [])) > 8:
+                synthesized = self._synthesize_evidence(raw_normalized, prepared)
+                if synthesized:
+                    return synthesized
+            raw_normalized["_source"] = "llm"
+            return raw_normalized
         fallback = self._heuristic_extract(text)
         fallback["_source"] = "heuristic"
         fallback["_llm_error"] = self.llm.last_error
@@ -349,7 +354,7 @@ class Kernel1Analyzer:
         allowed_elements = {"Ne", "Ni", "Se", "Si", "Te", "Ti", "Fe", "Fi", "unknown"}
         allowed_dimensions = {"1D", "2D", "3D", "4D", "unknown"}
         cleaned_quotes = []
-        for item in data.get("quotes", [])[:12]:
+        for item in data.get("quotes", [])[:30]:
             if not isinstance(item, dict):
                 continue
             quote = str(item.get("quote", "")).strip()[:90]
@@ -379,7 +384,21 @@ class Kernel1Analyzer:
                 }
             )
 
-        data["quotes"] = cleaned_quotes
+        # 按 (quote前30字, element, dimension) 强去重；同 (element, dimension) 组合最多 3 条
+        deduped: list[dict[str, Any]] = []
+        seen_quote_keys: set[tuple] = set()
+        dim_element_count: dict[tuple, int] = {}
+        for q in cleaned_quotes:
+            key = (q.get("quote", "")[:30], q.get("element_hint", ""), q.get("dimension_hint", ""))
+            if key in seen_quote_keys:
+                continue
+            dim_key = (q.get("element_hint", ""), q.get("dimension_hint", ""))
+            if dim_element_count.get(dim_key, 0) >= 3:
+                continue
+            seen_quote_keys.add(key)
+            dim_element_count[dim_key] = dim_element_count.get(dim_key, 0) + 1
+            deduped.append(q)
+        data["quotes"] = deduped
         # 规范化 conflicts，新增 conflict_kind 字段
         raw_conflicts = data.get("conflicts", []) if isinstance(data.get("conflicts"), list) else []
         cleaned_conflicts = []
@@ -1269,10 +1288,62 @@ class Kernel1Analyzer:
 
         return None
 
+    def _synthesize_evidence(
+        self,
+        raw_extraction: dict[str, Any],
+        prepared: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """阶段 2：把广提取的原始证据池精炼为 8 条核心证据。LLM 负责合并/去重/平衡/维度决策。"""
+        prompt_path = BASE_DIR / "prompts" / "evidence_synthesis.md"
+        if not prompt_path.exists():
+            return None
+        if not self.llm.config.enabled:
+            return None
+        raw_quotes = raw_extraction.get("quotes", [])
+        if len(raw_quotes) <= 8:
+            return None  # 无需精炼
+
+        system_prompt = prompt_path.read_text(encoding="utf-8")
+        raw_quotes_json = json.dumps(raw_quotes, ensure_ascii=False)
+        text_excerpt = prepared.get("analysis_text", "")[:1500]
+        if prepared.get("mode") == "qa_answers_only":
+            text_label = "问卷回答节选"
+        else:
+            text_label = "用户文本节选"
+
+        user_prompt = (
+            f"【原始证据池（{len(raw_quotes)} 条）】\n{raw_quotes_json}\n\n"
+            f"【{text_label}】\n{text_excerpt}\n\n"
+            f"请整合精炼为最多 8 条核心证据，输出 JSON。"
+        )
+
+        result = self.llm.chat_json(system_prompt, user_prompt)
+        if not isinstance(result, dict) or "quotes" not in result:
+            return None
+
+        synthesized = self._normalize_extraction(result)
+        synthesized["_source"] = "llm_synthesized"
+        synthesized["_raw_quote_count"] = len(raw_quotes)
+        synthesized["_synthesis_notes"] = result.get("synthesis_notes", {})
+        # 保留原始提取的顶层信号（dichotomy/laning/conflicts 合并）
+        synthesized["dichotomy_signals"] = raw_extraction.get("dichotomy_signals", {}) or synthesized.get("dichotomy_signals", {})
+        synthesized["laning_signals"] = raw_extraction.get("laning_signals", {}) or synthesized.get("laning_signals", {})
+        merged_conflicts = self._dedupe_dicts(
+            raw_extraction.get("conflicts", []) + synthesized.get("conflicts", []),
+            key="topic",
+        )
+        synthesized["conflicts"] = merged_conflicts
+        merged_insufficiency = list(set(
+            raw_extraction.get("insufficiency", []) + synthesized.get("insufficiency", [])
+        ))[:5]
+        synthesized["insufficiency"] = merged_insufficiency
+        return synthesized
+
     def _directed_reextract(
         self,
         prepared: dict[str, Any],
         blocking_axis: dict[str, Any],
+        existing_extraction: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         """L1 定向重提取：带着阻塞轴问题，让 LLM 重扫全文补充缺失元素的证据。"""
         prompt_path = BASE_DIR / "prompts" / "directed_extraction.md"
@@ -1290,6 +1361,18 @@ class Kernel1Analyzer:
         else:
             text_label = "用户文本"
 
+        # 注入已锁定的维度判定（防漂移）
+        locked_dims: dict[str, str] = {}
+        if existing_extraction:
+            for q in existing_extraction.get("quotes", []):
+                elem = q.get("element_hint", "")
+                dim = q.get("dimension_hint", "")
+                if elem not in {"unknown", None} and dim in {"1D", "2D", "3D", "4D"}:
+                    # 记录该元素最高维度（多条证据时取 lexicographic 最大 = 4D > 3D > 2D > 1D）
+                    existing = locked_dims.get(elem, "")
+                    if dim > existing:
+                        locked_dims[elem] = dim
+
         user_prompt = (
             f"当前判型卡在：{axis_desc}\n"
             f"竞争类型：{', '.join(competing)}\n"
@@ -1298,6 +1381,8 @@ class Kernel1Analyzer:
             f"只输出与阻塞轴相关的新发现的 quotes（3-6 条），不重复已有证据。只输出 JSON。\n\n"
             f"{text_label}：\n{full_text}"
         )
+        if locked_dims:
+            user_prompt += f"\n\n【已锁定的维度判定，不可修改】\n{json.dumps(locked_dims, ensure_ascii=False)}"
 
         result = self.llm.chat_json(system_prompt, user_prompt)
         if not self._is_valid_extraction(result):
@@ -1319,9 +1404,28 @@ class Kernel1Analyzer:
         执行 L1 定向重提取，合并证据，重新打分和判型。
         返回包含内部状态的 dict：{"_result", "_extraction", "_candidates"}。
         """
-        extra = self._directed_reextract(prepared, blocking_axis)
+        extra = self._directed_reextract(prepared, blocking_axis, existing_extraction=extraction)
         if not extra or not extra.get("quotes"):
             return {"_result": result, "_extraction": extraction, "_candidates": candidates}
+
+        # 代码侧防漂移：强制新证据的 dimension_hint 不超过已有元素的最高维度
+        existing_dim_map: dict[str, str] = {}
+        for q in extraction.get("quotes", []):
+            elem = q.get("element_hint", "")
+            dim = q.get("dimension_hint", "")
+            if elem not in {"unknown", None} and dim in {"1D", "2D", "3D", "4D"}:
+                existing = existing_dim_map.get(elem, "")
+                if dim > existing:
+                    existing_dim_map[elem] = dim
+
+        for q in extra.get("quotes", []):
+            elem = q.get("element_hint", "")
+            new_dim = q.get("dimension_hint", "")
+            if elem in existing_dim_map and new_dim in {"1D", "2D", "3D", "4D"}:
+                locked_dim = existing_dim_map[elem]
+                if new_dim != locked_dim:
+                    q["_drift_suppressed"] = new_dim
+                    q["dimension_hint"] = locked_dim
 
         # 合并 quotes，按 (quote前30字, element_hint) 去重
         existing_keys = {
@@ -1451,10 +1555,20 @@ class Kernel1Analyzer:
             )
             candidate_blocks.append(block)
 
-        # 已提取证据摘要
+        # 已提取证据摘要：按 IND 命中、元素已知、维度已知、置信度 排序，取前 12 条
+        quotes_with_priority = sorted(
+            extraction.get("quotes", []),
+            key=lambda q: (
+                1 if q.get("indicator", "").startswith("IND") else 0,
+                1 if q.get("element_hint") not in {"unknown", None} else 0,
+                1 if q.get("dimension_hint") not in {"unknown", None} else 0,
+                float(q.get("confidence") or 0),
+            ),
+            reverse=True,
+        )[:12]
         quotes_summary = "\n".join(
             f"- {q.get('quote', '')}（{q.get('element_hint')}/{q.get('dimension_hint')}）"
-            for q in extraction.get("quotes", [])[:8]
+            for q in quotes_with_priority
         )
 
         user_prompt = (
@@ -1533,7 +1647,7 @@ class Kernel1Analyzer:
         result["arbitration"] = {"voters": voters, "decision": decision, "reason": reason}
 
         if decision in {"certain", "certain_synthesis_override"}:
-            final_type = verdict if decision == "certain_synthesis_override" else (verdict if verdict == algo_top else verdict)
+            final_type = verdict  # decision ∈ {certain, certain_synthesis_override} 时 verdict 即结论
             meta = self.model_a.get(final_type, {})
             result["status"] = "certain"
             result["type"] = final_type
@@ -1623,8 +1737,7 @@ class Kernel1Analyzer:
             l1_out = self._try_directed_reextract(result, extraction, candidates, prepared, case_id, blocking)
             l1_result = l1_out["_result"]
             if l1_result["status"] == "certain":
-                l1_result["report"] = self._render_report(l1_result)
-                return l1_result
+                return l1_result  # 报告由 analyze() 统一渲染
             # 带入 L2，用 L1 的合并结果
             result = l1_result
             extraction = l1_out["_extraction"]
@@ -1634,8 +1747,7 @@ class Kernel1Analyzer:
         synthesis = self._synthesis_pass(prepared, candidates[:3], extraction)
         result = self._arbitrate(result, candidates, synthesis)
         if result["status"] == "certain":
-            result["report"] = self._render_report(result)
-            return result
+            return result  # 报告由 analyze() 统一渲染
 
         # L3：打回用户
         if blocking:
