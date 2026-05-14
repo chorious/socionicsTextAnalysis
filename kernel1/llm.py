@@ -92,4 +92,59 @@ class LLMClient:
             end = text.rfind("}")
             if start >= 0 and end > start:
                 text = text[start : end + 1]
-        return json.loads(text)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            recovered = self._recover_partial_quotes(text)
+            if recovered:
+                self.last_error = "Recovered partial JSON from truncated LLM response"
+                return recovered
+            raise
+
+    def _recover_partial_quotes(self, text: str) -> dict[str, Any] | None:
+        start = text.find('"quotes"')
+        if start < 0:
+            return None
+        array_start = text.find("[", start)
+        if array_start < 0:
+            return None
+
+        objects: list[dict[str, Any]] = []
+        depth = 0
+        obj_start: int | None = None
+        in_string = False
+        escape = False
+        for index, char in enumerate(text[array_start + 1 :], start=array_start + 1):
+            if in_string:
+                if escape:
+                    escape = False
+                elif char == "\\":
+                    escape = True
+                elif char == '"':
+                    in_string = False
+                continue
+            if char == '"':
+                in_string = True
+            elif char == "{":
+                if depth == 0:
+                    obj_start = index
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0 and obj_start is not None:
+                    chunk = text[obj_start : index + 1]
+                    try:
+                        objects.append(json.loads(chunk))
+                    except json.JSONDecodeError:
+                        pass
+                    obj_start = None
+                    if len(objects) >= 8:
+                        break
+        if not objects:
+            return None
+        return {
+            "quotes": objects,
+            "dichotomy_signals": {},
+            "conflicts": [{"topic": "LLM输出截断", "evidence": [], "reason": "仅恢复已闭合的证据项"}],
+            "insufficiency": ["LLM JSON 输出被截断，已使用部分恢复结果。"],
+        }

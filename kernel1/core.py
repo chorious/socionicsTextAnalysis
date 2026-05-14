@@ -262,6 +262,7 @@ class Kernel1Analyzer:
             )
         llm_result = self.llm.chat_json(self.extraction_prompt, user_prompt)
         if self._is_valid_extraction(llm_result):
+            llm_result = self._normalize_extraction(llm_result)
             llm_result["_source"] = "llm"
             return llm_result
         fallback = self._heuristic_extract(text)
@@ -273,6 +274,61 @@ class Kernel1Analyzer:
 
     def _is_valid_extraction(self, data: Any) -> bool:
         return isinstance(data, dict) and isinstance(data.get("quotes"), list)
+
+    def _normalize_extraction(self, data: dict[str, Any]) -> dict[str, Any]:
+        allowed_elements = {"Ne", "Ni", "Se", "Si", "Te", "Ti", "Fe", "Fi", "unknown"}
+        allowed_dimensions = {"1D", "2D", "3D", "4D", "unknown"}
+        cleaned_quotes = []
+        for item in data.get("quotes", [])[:8]:
+            if not isinstance(item, dict):
+                continue
+            quote = str(item.get("quote", "")).strip()[:90]
+            if not quote:
+                continue
+            element = item.get("element_hint") if item.get("element_hint") in allowed_elements else "unknown"
+            dimension = item.get("dimension_hint") if item.get("dimension_hint") in allowed_dimensions else "unknown"
+            cleaned_quotes.append(
+                {
+                    "quote": quote,
+                    "indicator": str(item.get("indicator", "unknown"))[:40],
+                    "element_hint": element,
+                    "dimension_hint": dimension,
+                    "position_hint": item.get("position_hint") if isinstance(item.get("position_hint"), int) else None,
+                    "confidence": self._bounded_float(item.get("confidence"), 0.5),
+                    "strength_signal": self._allowed_value(item.get("strength_signal"), {"strong", "weak", "unknown"}),
+                    "valued_signal": self._allowed_value(item.get("valued_signal"), {"valued", "unvalued", "unknown"}),
+                    "mental_signal": self._allowed_value(item.get("mental_signal"), {"mental", "vital", "unknown"}),
+                    "accepting_signal": self._allowed_value(item.get("accepting_signal"), {"accepting", "producing", "unknown"}),
+                    "contact_signal": self._allowed_value(item.get("contact_signal"), {"contact", "inert", "unknown"}),
+                    "guide_signal": self._allowed_value(item.get("guide_signal"), {"guide", "separate", "unknown"}),
+                    "evidence_type": self._allowed_value(
+                        item.get("evidence_type"),
+                        {"identity", "comfort", "stress", "tool", "avoidance", "flexibility", "uncertainty", "keyword"},
+                    ),
+                    "reason": str(item.get("reason", ""))[:50],
+                }
+            )
+
+        data["quotes"] = cleaned_quotes
+        data["conflicts"] = data.get("conflicts", [])[:5] if isinstance(data.get("conflicts"), list) else []
+        data["insufficiency"] = (
+            [str(item)[:80] for item in data.get("insufficiency", [])[:5]]
+            if isinstance(data.get("insufficiency"), list)
+            else []
+        )
+        if not isinstance(data.get("dichotomy_signals"), dict):
+            data["dichotomy_signals"] = {}
+        return data
+
+    def _allowed_value(self, value: Any, allowed: set[str]) -> str:
+        return value if isinstance(value, str) and value in allowed else "unknown"
+
+    def _bounded_float(self, value: Any, default: float) -> float:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            number = default
+        return max(0.0, min(1.0, number))
 
     def _heuristic_extract(self, text: str) -> dict[str, Any]:
         sentences = [s.strip() for s in re.split(r"[。！？!?；;\n]+", text) if s.strip()]
