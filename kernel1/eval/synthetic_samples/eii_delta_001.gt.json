@@ -1,0 +1,25 @@
+{
+  "case_id": "eii_delta_001",
+  "ground_truth": {
+    "type": "EII",
+    "alias": "INFj",
+    "quadra": "Delta",
+    "model_a": ["Fi", "Ne", "Ti", "Se", "Te", "Si", "Fe", "Ni"]
+  },
+  "source": {
+    "doc": "工具社会人格学_防晕字精简版 (1).docx",
+    "sections": {
+      "Fi 1号(主导)": "docx 段 185-191",
+      "Ne 2号(创造)": "docx 段 269-272",
+      "Si 3号(MSP)": "docx 段 252-257",
+      "Te 4号(暗示)": "docx 段 139-143"
+    }
+  },
+  "expected_signals": {
+    "top_candidate_must_include": ["EII"],
+    "min_confidence_target": 0.80,
+    "evidence_must_cover_elements": ["Fi", "Ne"],
+    "evidence_should_cover_elements": ["Si", "Te"]
+  },
+  "notes": "EII 典型自述：Fi 4D 主导 (心里一杆秤、对人定性持久)、Ne 2nd 创造 (调和派、看到多种走法)、Si 3rd MSP ('行走的医学百科'、健康敏感)、Te 4th 暗示 (硬规则发愁、需要别人告诉怎么走流程)。"
+}

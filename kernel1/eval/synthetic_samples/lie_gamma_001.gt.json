@@ -1,0 +1,25 @@
+{
+  "case_id": "lie_gamma_001",
+  "ground_truth": {
+    "type": "LIE",
+    "alias": "ENTj",
+    "quadra": "Gamma",
+    "model_a": ["Te", "Ni", "Fe", "Si", "Fi", "Se", "Ti", "Ne"]
+  },
+  "source": {
+    "doc": "工具社会人格学_防晕字精简版 (1).docx",
+    "sections": {
+      "Te 1号(主导)": "docx 段 119-127",
+      "Ni 2号(创造)": "docx 段 290-294",
+      "Se 3号(MSP)": "docx 段 228-234",
+      "Fi 4号(暗示)": "docx 段 204-209"
+    }
+  },
+  "expected_signals": {
+    "top_candidate_must_include": ["LIE"],
+    "min_confidence_target": 0.80,
+    "evidence_must_cover_elements": ["Te", "Ni"],
+    "evidence_should_cover_elements": ["Se", "Fi"]
+  },
+  "notes": "LIE 典型自述：Te 4D 主导 (效率、产出、流程)、Ni 2nd 创造 (看远、长远走向)、Se 3rd MSP (在意'强'与社会地位、害怕被认为弱)、Fi 4th 暗示 (拿不准人际距离、被亲近的人评价带跑)。"
+}

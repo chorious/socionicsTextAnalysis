@@ -1,0 +1,25 @@
+{
+  "case_id": "ile_alpha_001",
+  "ground_truth": {
+    "type": "ILE",
+    "alias": "ENTp",
+    "quadra": "Alpha",
+    "model_a": ["Ne", "Ti", "Se", "Fi", "Si", "Fe", "Ni", "Te"]
+  },
+  "source": {
+    "doc": "工具社会人格学_防晕字精简版 (1).docx",
+    "sections": {
+      "Ne 1号(主导)": "docx 段 264-268",
+      "Ti 2号(创造)": "docx 段 149-152",
+      "Fe 3号(MSP)": "docx 段 175-179",
+      "Si 4号(暗示)": "docx 段 258-262"
+    }
+  },
+  "expected_signals": {
+    "top_candidate_must_include": ["ILE"],
+    "min_confidence_target": 0.80,
+    "evidence_must_cover_elements": ["Ne", "Ti"],
+    "evidence_should_cover_elements": ["Fe", "Si"]
+  },
+  "notes": "ILE 典型自述：Ne 4D 主导 (未来可能性、多种走向)、Ti 2nd 创造 (拆框架、长时间解释)、Fe 3rd MSP (在意他人好感、反复琢磨)、Si 4th 暗示 (身体迟钝、需要照顾)。"
+}

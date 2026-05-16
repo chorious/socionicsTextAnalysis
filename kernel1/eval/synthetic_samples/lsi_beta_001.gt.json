@@ -1,0 +1,25 @@
+{
+  "case_id": "lsi_beta_001",
+  "ground_truth": {
+    "type": "LSI",
+    "alias": "ISTj",
+    "quadra": "Beta",
+    "model_a": ["Ti", "Se", "Fi", "Ne", "Fe", "Ni", "Te", "Si"]
+  },
+  "source": {
+    "doc": "工具社会人格学_防晕字精简版 (1).docx",
+    "sections": {
+      "Ti 1号(主导)": "docx 段 145-148",
+      "Se 2号(创造)": "docx 段 220-227",
+      "Ni 3号(MSP)": "docx 段 295-300",
+      "Fe 4号(暗示)": "docx 段 180-183"
+    }
+  },
+  "expected_signals": {
+    "top_candidate_must_include": ["LSI"],
+    "min_confidence_target": 0.80,
+    "evidence_must_cover_elements": ["Ti", "Se"],
+    "evidence_should_cover_elements": ["Ni", "Fe"]
+  },
+  "notes": "LSI 典型自述：Ti 4D 主导 (逻辑体系坚固、不爱解释)、Se 2nd 创造 (节奏控制、带人教技能)、Ni 3rd MSP (原则一致性、失控感)、Fe 4th 暗示 (人际关系喜欢简单、字面理解情绪)。"
+}
