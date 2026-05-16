@@ -61,6 +61,16 @@ QA 模式补充规则：
   `IND ST-A`、`IND HD-B`、`IND HD-F`、`IND VR-A`、`IND NV-A`、`IND NV-D`。
   如果没有命中具名指标，填 `""`。
 
+## 错误示例（禁止）
+
+- indicator="显性/感觉"     → 应改为 "IND ST-A"（情境灵活）或 "IND F1-A"（4D 认同）
+- indicator="主导直觉"       → 应改为 "IND F1-A" 或 "IND TM-A"
+- indicator="strong_logic"  → 应改为 ""，强弱用 strength_signal=strong 表达
+- indicator="弱情感"         → 应改为 "" + valued_signal=unvalued + strength_signal=weak
+
+规则：indicator 字段只能从 19 个 IND 代码或 "" 中选；强弱/重视/环路请用专门字段表达。
+下方有参考字典，遇到类似措辞时直接对照套用。
+
 - `laning_signals` 字段用于赖宁二分法象限决断，只有在两个候选类型十分接近时才有意义。
   只输出你有把握的项（lean 不是 unknown 的），无把握全部省略：
   - `democratic` vs `aristocratic`：看重个人独立属性=democratic，看重群体标签/等级=aristocratic。

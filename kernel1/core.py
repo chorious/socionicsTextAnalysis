@@ -122,8 +122,12 @@ class AnalyzeOptions:
     min_chars: int = 80
     max_chars: int = 12000
     top_threshold: float = 0.65
+    target_confidence: float = 0.80
     margin_threshold: float = 0.12
     min_evidence: int = 3
+    no_first_4d_ceiling: float = 0.58
+    denom_quote_cap: int = 12
+    ref_cards_filename: str | None = None
 
 
 class Kernel1Analyzer:
@@ -131,7 +135,7 @@ class Kernel1Analyzer:
         self.llm = llm or LLMClient()
         self.options = options or AnalyzeOptions()
         self.model_a = self._load_model_a()
-        self.extraction_prompt = EXTRACTION_PROMPT_PATH.read_text(encoding="utf-8")
+        self.extraction_prompt = self._load_extraction_prompt()
         LOG_DIR.mkdir(parents=True, exist_ok=True)
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -183,6 +187,56 @@ class Kernel1Analyzer:
 
     def _load_model_a(self) -> dict[str, Any]:
         return json.loads(MODEL_A_PATH.read_text(encoding="utf-8"))
+
+    def _load_extraction_prompt(self) -> str:
+        """加载主 prompt,若 reference_cards.md 存在则拼接到末尾。
+
+        优先使用 options.ref_cards_filename 指定的字典文件;否则回退到默认
+        prompts/reference_cards.md。无效或不存在时静默回退到默认。
+        """
+        base = EXTRACTION_PROMPT_PATH.read_text(encoding="utf-8")
+        ref_filename = self.options.ref_cards_filename
+        ref_path = self._resolve_ref_cards_path(ref_filename)
+        if ref_path and ref_path.exists():
+            ref = ref_path.read_text(encoding="utf-8")
+            return f"{base}\n\n---\n\n{ref}"
+        return base
+
+    @staticmethod
+    def _resolve_ref_cards_path(filename: str | None) -> Path | None:
+        """Validate filename and return a Path inside prompts/, or None on failure.
+
+        Only allow files matching `reference_cards*.md` under prompts/ to avoid
+        path-traversal attempts. Default prefers the docx-sourced Socionics
+        variant when present, falling back to the compact dictionary.
+        """
+        prompts_dir = BASE_DIR / "prompts"
+        socionics = prompts_dir / "reference_cards_socionics.md"
+        compact = prompts_dir / "reference_cards.md"
+        default = socionics if socionics.exists() else compact
+        if filename is None or not filename:
+            return default
+        name = str(filename).strip()
+        if name in {"", "default"}:
+            return default
+        if "/" in name or "\\" in name or ".." in name:
+            return default
+        if not (name.startswith("reference_cards") and name.endswith(".md")):
+            return default
+        candidate = prompts_dir / name
+        return candidate if candidate.exists() else default
+
+    @classmethod
+    def list_ref_cards(cls) -> list[str]:
+        """Enumerate available reference card files under prompts/."""
+        prompts_dir = BASE_DIR / "prompts"
+        files = sorted(p.name for p in prompts_dir.glob("reference_cards*.md"))
+        return files
+
+    def _active_ref_cards_name(self) -> str:
+        """Return the actual filename of the loaded reference cards (or empty)."""
+        ref_path = self._resolve_ref_cards_path(self.options.ref_cards_filename)
+        return ref_path.name if ref_path and ref_path.exists() else ""
 
     def _normalize_text(self, text: str) -> str:
         return re.sub(r"\n{3,}", "\n\n", text.strip())
@@ -337,6 +391,9 @@ class Kernel1Analyzer:
                 llm_result = repaired
         if self._is_valid_extraction(llm_result):
             raw_normalized = self._normalize_extraction(llm_result)
+            raw_normalized["_indicator_hit_rate"] = self._indicator_hit_rate(
+                raw_normalized.get("quotes", [])
+            )
             if isinstance(llm_result, dict) and llm_result.get("_llm_error"):
                 raw_normalized["_llm_error"] = llm_result.get("_llm_error")
             if isinstance(llm_result, dict) and llm_result.get("_llm_raw_path"):
@@ -345,6 +402,9 @@ class Kernel1Analyzer:
             if len(raw_normalized.get("quotes", [])) > 8:
                 synthesized = self._synthesize_evidence(raw_normalized, prepared)
                 if synthesized:
+                    synthesized["_indicator_hit_rate"] = self._indicator_hit_rate(
+                        synthesized.get("quotes", [])
+                    )
                     return self._ensure_qa_evidence_coverage(synthesized, prepared)
             raw_normalized["_source"] = "llm"
             return self._ensure_qa_evidence_coverage(raw_normalized, prepared)
@@ -356,7 +416,15 @@ class Kernel1Analyzer:
         if isinstance(llm_result, dict) and isinstance(llm_result.get("quotes"), list):
             fallback["_schema_invalid"] = True
             fallback["_llm_error"] = "LLM returned invalid extraction schema"
+        fallback["_indicator_hit_rate"] = self._indicator_hit_rate(fallback.get("quotes", []))
         return self._ensure_qa_evidence_coverage(fallback, prepared)
+
+    def _indicator_hit_rate(self, quotes: list[dict[str, Any]]) -> float:
+        """合法 IND 代码占所有 quote 的比例（已归一化后计算）。"""
+        if not quotes:
+            return 0.0
+        hits = sum(1 for q in quotes if q.get("indicator") in IND_PROFILES)
+        return round(hits / len(quotes), 3)
 
     def _is_valid_extraction(self, data: Any) -> bool:
         return (
@@ -418,7 +486,7 @@ class Kernel1Analyzer:
             cleaned_quotes.append(
                 {
                     "quote": quote,
-                    "indicator": str(item.get("indicator", "unknown"))[:40],
+                    "indicator": self._resolve_indicator(item),
                     "element_hint": element,
                     "dimension_hint": dimension,
                     "position_hint": item.get("position_hint") if isinstance(item.get("position_hint"), int) else None,
@@ -493,6 +561,41 @@ class Kernel1Analyzer:
                     cleaned_laning[key] = {"lean": lean_val, "confidence": conf, "evidence": evidence}
         data["laning_signals"] = cleaned_laning
         return data
+
+    def _resolve_indicator(self, item: dict[str, Any]) -> str:
+        """白名单 + 反推：合法 IND 直接返回；非法字符串尝试按信号反推。"""
+        raw = str(item.get("indicator", ""))[:40].strip()
+        if raw in IND_PROFILES:
+            return raw
+        return self._infer_indicator(item) or ""
+
+    def _infer_indicator(self, item: dict[str, Any]) -> str | None:
+        """根据 quote 的信号字段，从 IND_PROFILES 中找出匹配度最高的 IND 代码。
+
+        匹配 ≥ 2 项（dimension/strength/valued/mental）才返回；否则返回 None。
+        dimension 命中得 2 分，其余各 1 分。
+        """
+        dim = item.get("dimension_hint")
+        strength = item.get("strength_signal")
+        valued = item.get("valued_signal")
+        mental = item.get("mental_signal")
+
+        best_code: str | None = None
+        best_score = 0
+        for code, profile in IND_PROFILES.items():
+            score = 0
+            if profile.get("dimension_hint") and profile["dimension_hint"] == dim:
+                score += 2
+            if profile.get("strength_signal") and profile["strength_signal"] == strength:
+                score += 1
+            if profile.get("valued_signal") and profile["valued_signal"] == valued:
+                score += 1
+            if profile.get("mental_signal") and profile["mental_signal"] == mental:
+                score += 1
+            if score > best_score:
+                best_score = score
+                best_code = code
+        return best_code if best_score >= 2 else None
 
     def _ensure_qa_evidence_coverage(
         self, extraction: dict[str, Any], prepared: dict[str, Any]
@@ -895,13 +998,27 @@ class Kernel1Analyzer:
                 if first_element in ELEMENT_GROUPS[lean]:
                     raw_scores[type_code] += 0.8 * confidence
 
+        # 饱和分母：避免高质量证据多时分母膨胀压低 confidence
+        element_quotes = [q for q in quotes if q.get("element_hint") in {
+            "Ne", "Ni", "Se", "Si", "Te", "Ti", "Fe", "Fi"
+        }]
+        quote_count = len(element_quotes)
+        if quote_count > 0:
+            avg_conf = sum(float(q.get("confidence") or 0.5) for q in element_quotes) / quote_count
+            quote_contribution = 3.8 * quote_count * avg_conf
+            saturated_quote_contribution = 3.8 * min(quote_count, self.options.denom_quote_cap) * avg_conf
+            non_quote_pool = max(0.0, max_possible - quote_contribution)
+            max_possible = max(saturated_quote_contribution + non_quote_pool, 1.0)
+        else:
+            max_possible = max(max_possible, 1.0)
+
         ranked = []
         for type_code, score in raw_scores.items():
             normalized = max(0.0, min(1.0, score / max_possible + 0.2))
             rule_conflicts = self._dedupe(details[type_code]["rule_conflicts"])
             rule_matches = self._dedupe(details[type_code]["rule_matches"])
             if details[type_code]["first_4d_support"] <= 0:
-                normalized = min(normalized, 0.58)
+                normalized = min(normalized, self.options.no_first_4d_ceiling)
             ranked.append(
                 {
                     "type": type_code,
@@ -1206,19 +1323,21 @@ class Kernel1Analyzer:
         partial_recovered = self._is_partial_recovered(extraction)
         schema_invalid = bool(extraction.get("_schema_invalid"))
         hard_uncertain = no_4d or no_3d or few_evidence or bool(real_conflicts) or partial_recovered or schema_invalid
+        score_below_target = top["score"] < self.options.target_confidence
 
         if not hard_uncertain and margin_small and not score_low and not creative_confused and not insufficiency:
             # 仅 margin 不足：先试赖宁决断
             laning_result = self._laning_tiebreak(candidates, laning_signals)
             if laning_result:
                 top = laning_result["winner"]
-                status = "certain"
+                score_below_target = top["score"] < self.options.target_confidence
+                status = "uncertain" if score_below_target else "certain"
             else:
                 status = "uncertain"
         elif score_low or hard_uncertain or creative_confused or insufficiency:
             status = "uncertain"
         else:
-            status = "certain"
+            status = "uncertain" if score_below_target else "certain"
 
         type_code = top["type"] if status == "certain" else None
         meta = self.model_a.get(top["type"], {})
@@ -1240,6 +1359,8 @@ class Kernel1Analyzer:
                 "original_length": prepared["original_length"],
                 "analysis_length": prepared["analysis_length"],
                 "qa_items": prepared["qa_items"][:10],
+                "indicator_hit_rate": extraction.get("_indicator_hit_rate", 0.0),
+                "ref_cards": self._active_ref_cards_name(),
             },
             "input_encoding": "utf-8",
             "extraction_source": extraction.get("_source", "unknown"),
