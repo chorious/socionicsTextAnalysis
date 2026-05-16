@@ -380,8 +380,10 @@
         <div class="meta">
           <div class="metric"><span>判型状态</span><strong id="mStatus">-</strong></div>
           <div class="metric"><span>候选第一</span><strong id="mTop">-</strong></div>
-          <div class="metric"><span>置信度</span><strong id="mConfBadge">-</strong></div>
+          <div class="metric"><span>系统可信度</span><strong id="mConfBadge">-</strong></div>
           <div class="metric"><span>IND 命中率</span><strong id="mHitBadge">-</strong></div>
+          <div class="metric"><span>算法 Top-1</span><strong id="mAlgoTop">-</strong></div>
+          <div class="metric"><span>稳定性</span><strong id="mStability">-</strong></div>
           <div class="metric"><span>证据来源</span><strong id="mSource">-</strong></div>
           <div class="metric"><span>参考字典</span><strong id="mRefCards">-</strong></div>
           <div class="metric wide"><span>LLM 状态</span><strong id="mLlm">-</strong></div>
@@ -488,16 +490,47 @@
       $("mStatus").textContent = data.status || "-";
       $("mTop").textContent = top ? `${top.type} (${top.score})` : "-";
 
+      // v0.10:confidence 是系统对最终 type 的可信度,绿=已给出 type 且达标;黄=低置信;红=未给出 type
       const conf = Number(data.confidence ?? 0);
       const target = 0.80;
+      const status = data.status;
+      const breakdown = data.confidence_breakdown || {};
+      const reason = breakdown.reason || "";
       const confBadge = $("mConfBadge");
-      confBadge.textContent = `${conf.toFixed(3)} (目标 ≥ ${target})`;
-      confBadge.style.color = conf >= target ? "#0a0" : (conf >= 0.65 ? "#c80" : "#c00");
+      const typeGiven = status === "certain" && data.type;
+      confBadge.textContent = `${conf.toFixed(3)} ${typeGiven ? "✓" : "(无 type)"}`;
+      confBadge.title = `raw_score=${breakdown.raw_score ?? "?"}  reason=${reason}`;
+      if (typeGiven && conf >= target) {
+        confBadge.style.color = "#0a0";
+      } else if (typeGiven) {
+        confBadge.style.color = "#c80";
+      } else {
+        confBadge.style.color = "#c00";
+      }
 
       const hit = Number(data.preprocess?.indicator_hit_rate ?? 0);
       const hitBadge = $("mHitBadge");
       hitBadge.textContent = `${(hit * 100).toFixed(0)}% (目标 ≥ 70%)`;
       hitBadge.style.color = hit >= 0.7 ? "#0a0" : (hit >= 0.4 ? "#c80" : "#c00");
+
+      // v0.10 新增:算法 Top-1 与稳定性
+      const algoTop = data.algorithm_top;
+      $("mAlgoTop").textContent = algoTop && algoTop.type
+        ? `${algoTop.type} (${(algoTop.score ?? 0).toFixed(3)})`
+        : "-";
+      const stability = data.stability_hint;
+      const stabilityBadge = $("mStability");
+      if (!stability || stability.consistent === null || stability.consistent === undefined) {
+        stabilityBadge.textContent = "未仲裁";
+        stabilityBadge.style.color = "#666";
+      } else if (stability.consistent) {
+        stabilityBadge.textContent = `一致 (coh=${(stability.coherence ?? 0).toFixed(2)})`;
+        stabilityBadge.style.color = "#0a0";
+      } else {
+        const sv = stability.synthesis_verdict || "?";
+        stabilityBadge.textContent = `不一致 (算法=${stability.algorithm_top}/综合=${sv})`;
+        stabilityBadge.style.color = "#c00";
+      }
 
       $("mSource").textContent = data.extraction_source || "-";
       $("mRefCards").textContent = data.preprocess?.ref_cards || "-";

@@ -1,0 +1,902 @@
+{
+  "case_id": "web-1778908013096",
+  "status": "clarifying",
+  "type": null,
+  "alias": null,
+  "quadra": null,
+  "confidence": 1.0,
+  "candidates": [
+    {
+      "type": "IEI",
+      "score": 1.0,
+      "first_hypothesis": "Ni",
+      "second_hypothesis": "Fe",
+      "first_4d_support": 4.1,
+      "first_axis_score": 9.338,
+      "second_3d_support": 0.6,
+      "first_leading_support": 14.965,
+      "second_creative_support": 2.34,
+      "second_ignoring_risk": 0.78,
+      "rule_matches": [
+        "1st/2nd 满足理性+非理性搭配",
+        "Ni 位置 1 匹配 4D",
+        "Fe 位置 2 匹配 3D",
+        "Fi 位置 8 匹配 4D"
+      ],
+      "rule_conflicts": [
+        "Se 位置 5 与 3D 证据冲突",
+        "Ti 强弱信号 strong 与位置 6 不一致",
+        "Si 位置 3 与 4D 证据冲突",
+        "Si 强弱信号 strong 与位置 3 不一致",
+        "Si 重视信号 valued 与位置 3 不一致",
+        "Te 位置 4 与 4D 证据冲突",
+        "Te 强弱信号 strong 与位置 4 不一致",
+        "Te 重视信号 valued 与位置 4 不一致"
+      ],
+      "global_score": 4.33,
+      "global_matches": [
+        "接受/生产: Ni 符合 accepting",
+        "接受/生产: Fe 符合 producing",
+        "接受/生产: Si 符合 accepting",
+        "接受/生产: Se 符合 accepting",
+        "接受/生产: Ti 符合 producing",
+        "接触/惰性: Ni 符合 inert",
+        "接触/惰性: Fe 符合 contact",
+        "接触/惰性: Se 符合 contact"
+      ],
+      "global_conflicts": [
+        "接受/生产: Fi 的 accepting 与 8 位冲突",
+        "接触/惰性: Fi 的 inert 与 8 位冲突",
+        "接触/惰性: Si 的 inert 与 3 位冲突",
+        "接触/惰性: Ti 的 contact 与 6 位冲突",
+        "引导/分离: Si 的 guide 与 3 位冲突",
+        "静态/动态: 与动态类型环路有张力",
+        "理性/非理性整模型: 与非理性类型有张力"
+      ],
+      "hard_conflict_count": 13
+    },
+    {
+      "type": "ILI",
+      "score": 1.0,
+      "first_hypothesis": "Ni",
+      "second_hypothesis": "Te",
+      "first_4d_support": 4.1,
+      "first_axis_score": 9.338,
+      "second_3d_support": 0.0,
+      "first_leading_support": 14.965,
+      "second_creative_support": 6.58,
+      "second_ignoring_risk": 2.38,
+      "rule_matches": [
+        "1st/2nd 满足理性+非理性搭配",
+        "Ni 位置 1 匹配 4D"
+      ],
+      "rule_conflicts": [
+        "Se 位置 5 与 3D 证据冲突",
+        "Ti 重视信号 valued 与位置 8 不一致",
+        "Si 位置 3 与 4D 证据冲突",
+        "Si 强弱信号 strong 与位置 3 不一致",
+        "Si 重视信号 valued 与位置 3 不一致",
+        "Te 接受/生产信号 accepting 与位置 2 不一致",
+        "Fe 强弱信号 strong 与位置 4 不一致",
+        "Fe 重视信号 valued 与位置 4 不一致"
+      ],
+      "global_score": 3.646,
+      "global_matches": [
+        "接受/生产: Ni 符合 accepting",
+        "接受/生产: Fe 符合 producing",
+        "接受/生产: Si 符合 accepting",
+        "接受/生产: Se 符合 accepting",
+        "接受/生产: Ti 符合 producing",
+        "接触/惰性: Ni 符合 inert",
+        "接触/惰性: Fi 符合 inert",
+        "接触/惰性: Se 符合 contact"
+      ],
+      "global_conflicts": [
+        "接受/生产: Fi 的 accepting 与 6 位冲突",
+        "接触/惰性: Fe 的 contact 与 4 位冲突",
+        "接触/惰性: Si 的 inert 与 3 位冲突",
+        "引导/分离: Fe 的 separate 与 4 位冲突",
+        "引导/分离: Fi 的 guide 与 6 位冲突",
+        "引导/分离: Si 的 guide 与 3 位冲突",
+        "引导/分离: Ti 的 separate 与 8 位冲突",
+        "静态/动态: 与动态类型环路有张力"
+      ],
+      "hard_conflict_count": 13
+    },
+    {
+      "type": "SEI",
+      "score": 1.0,
+      "first_hypothesis": "Si",
+      "second_hypothesis": "Fe",
+      "first_4d_support": 4.2,
+      "first_axis_score": 9.219,
+      "second_3d_support": 0.6,
+      "first_leading_support": 14.34,
+      "second_creative_support": 2.34,
+      "second_ignoring_risk": 0.78,
+      "rule_matches": [
+        "1st/2nd 满足理性+非理性搭配",
+        "Se 位置 7 匹配 3D",
+        "Si 位置 1 匹配 4D",
+        "Fe 位置 2 匹配 3D",
+        "Fi 位置 8 匹配 4D"
+      ],
+      "rule_conflicts": [
+        "Se 强弱信号 weak 与位置 7 不一致",
+        "Se 重视信号 valued 与位置 7 不一致",
+        "Ti 强弱信号 strong 与位置 6 不一致",
+        "Si 重视信号 unvalued 与位置 1 不一致",
+        "Te 位置 4 与 4D 证据冲突",
+        "Te 强弱信号 strong 与位置 4 不一致",
+        "Te 重视信号 valued 与位置 4 不一致",
+        "Te 接受/生产信号 accepting 与位置 4 不一致"
+      ],
+      "global_score": 1.081,
+      "global_matches": [
+        "接受/生产: Ni 符合 accepting",
+        "接受/生产: Fe 符合 producing",
+        "接受/生产: Si 符合 accepting",
+        "接受/生产: Se 符合 accepting",
+        "接受/生产: Ti 符合 producing",
+        "接触/惰性: Fe 符合 contact",
+        "接触/惰性: Si 符合 inert",
+        "引导/分离: Fe 符合 separate"
+      ],
+      "global_conflicts": [
+        "接受/生产: Fi 的 accepting 与 8 位冲突",
+        "接触/惰性: Ni 的 inert 与 3 位冲突",
+        "接触/惰性: Fi 的 inert 与 8 位冲突",
+        "接触/惰性: Se 的 contact 与 7 位冲突",
+        "接触/惰性: Ti 的 contact 与 6 位冲突",
+        "引导/分离: Ni 的 guide 与 3 位冲突",
+        "引导/分离: Se 的 guide 与 7 位冲突",
+        "静态/动态: 与动态类型环路有张力"
+      ],
+      "hard_conflict_count": 14
+    }
+  ],
+  "candidate_explanations": [
+    {
+      "type": "IEI",
+      "score": 1.0,
+      "first_hypothesis": "Ni",
+      "second_hypothesis": "Fe",
+      "first_4d_support": 4.1,
+      "first_axis_score": 9.338,
+      "second_3d_support": 0.6,
+      "second_creative_support": 2.34,
+      "second_ignoring_risk": 0.78,
+      "matched": [
+        "Ni 在 1 位匹配 4D: 飞蛾贯穿在那些以方言唱出的新春的唱词里面，我能感受到一个",
+        "Fe 在 2 位匹配 3D: 我比泪圈大部分人要更人情世故，所以当我谈起来这些事情的时"
+      ],
+      "tension": [
+        "Se 在 5 位不匹配 3D: 他一个壮硕的老兵，真的能把闹事的人扛出门去。怎么说呢，我",
+        "Ti 在 6 位不匹配 3D: 如果真的是来理论探讨的话，我不介意带着火药味儿的跟他聊大",
+        "Si 在 3 位不匹配 4D: 我喝醉后只会说方言。"
+      ],
+      "rule_matches": [
+        "1st/2nd 满足理性+非理性搭配",
+        "Ni 位置 1 匹配 4D",
+        "Fe 位置 2 匹配 3D",
+        "Fi 位置 8 匹配 4D"
+      ],
+      "rule_conflicts": [
+        "Se 位置 5 与 3D 证据冲突",
+        "Ti 强弱信号 strong 与位置 6 不一致",
+        "Si 位置 3 与 4D 证据冲突",
+        "Si 强弱信号 strong 与位置 3 不一致"
+      ],
+      "global_score": 4.33,
+      "global_matches": [
+        "接受/生产: Ni 符合 accepting",
+        "接受/生产: Fe 符合 producing",
+        "接受/生产: Si 符合 accepting",
+        "接受/生产: Se 符合 accepting"
+      ],
+      "global_conflicts": [
+        "接受/生产: Fi 的 accepting 与 8 位冲突",
+        "接触/惰性: Fi 的 inert 与 8 位冲突",
+        "接触/惰性: Si 的 inert 与 3 位冲突",
+        "接触/惰性: Ti 的 contact 与 6 位冲突"
+      ]
+    },
+    {
+      "type": "ILI",
+      "score": 1.0,
+      "first_hypothesis": "Ni",
+      "second_hypothesis": "Te",
+      "first_4d_support": 4.1,
+      "first_axis_score": 9.338,
+      "second_3d_support": 0.0,
+      "second_creative_support": 6.58,
+      "second_ignoring_risk": 2.38,
+      "matched": [
+        "Ni 在 1 位匹配 4D: 飞蛾贯穿在那些以方言唱出的新春的唱词里面，我能感受到一个"
+      ],
+      "tension": [
+        "Se 在 5 位不匹配 3D: 他一个壮硕的老兵，真的能把闹事的人扛出门去。怎么说呢，我",
+        "Ti 在 8 位不匹配 3D: 如果真的是来理论探讨的话，我不介意带着火药味儿的跟他聊大",
+        "Si 在 3 位不匹配 4D: 我喝醉后只会说方言。"
+      ],
+      "rule_matches": [
+        "1st/2nd 满足理性+非理性搭配",
+        "Ni 位置 1 匹配 4D"
+      ],
+      "rule_conflicts": [
+        "Se 位置 5 与 3D 证据冲突",
+        "Ti 重视信号 valued 与位置 8 不一致",
+        "Si 位置 3 与 4D 证据冲突",
+        "Si 强弱信号 strong 与位置 3 不一致"
+      ],
+      "global_score": 3.646,
+      "global_matches": [
+        "接受/生产: Ni 符合 accepting",
+        "接受/生产: Fe 符合 producing",
+        "接受/生产: Si 符合 accepting",
+        "接受/生产: Se 符合 accepting"
+      ],
+      "global_conflicts": [
+        "接受/生产: Fi 的 accepting 与 6 位冲突",
+        "接触/惰性: Fe 的 contact 与 4 位冲突",
+        "接触/惰性: Si 的 inert 与 3 位冲突",
+        "引导/分离: Fe 的 separate 与 4 位冲突"
+      ]
+    },
+    {
+      "type": "SEI",
+      "score": 1.0,
+      "first_hypothesis": "Si",
+      "second_hypothesis": "Fe",
+      "first_4d_support": 4.2,
+      "first_axis_score": 9.219,
+      "second_3d_support": 0.6,
+      "second_creative_support": 2.34,
+      "second_ignoring_risk": 0.78,
+      "matched": [
+        "Se 在 7 位匹配 3D: 他一个壮硕的老兵，真的能把闹事的人扛出门去。怎么说呢，我",
+        "Si 在 1 位匹配 4D: 我喝醉后只会说方言。",
+        "Si 在 1 位匹配 4D: 我海边长大的，不在意。但是酸和鱼腥会融合成一种全新的无法",
+        "Si 在 1 位匹配 4D: 欣赏不了那种雅趣，但是水里长的金鱼草确实让我很眼热，老家"
+      ],
+      "tension": [
+        "Ti 在 6 位不匹配 3D: 如果真的是来理论探讨的话，我不介意带着火药味儿的跟他聊大",
+        "Te 在 4 位不匹配 4D: 我玩游戏侧重于技术方面，建筑和养成部分都为此服务，所以我",
+        "Ni 在 3 位不匹配 4D: 飞蛾贯穿在那些以方言唱出的新春的唱词里面，我能感受到一个"
+      ],
+      "rule_matches": [
+        "1st/2nd 满足理性+非理性搭配",
+        "Se 位置 7 匹配 3D",
+        "Si 位置 1 匹配 4D",
+        "Fe 位置 2 匹配 3D"
+      ],
+      "rule_conflicts": [
+        "Se 强弱信号 weak 与位置 7 不一致",
+        "Se 重视信号 valued 与位置 7 不一致",
+        "Ti 强弱信号 strong 与位置 6 不一致",
+        "Si 重视信号 unvalued 与位置 1 不一致"
+      ],
+      "global_score": 1.081,
+      "global_matches": [
+        "接受/生产: Ni 符合 accepting",
+        "接受/生产: Fe 符合 producing",
+        "接受/生产: Si 符合 accepting",
+        "接受/生产: Se 符合 accepting"
+      ],
+      "global_conflicts": [
+        "接受/生产: Fi 的 accepting 与 8 位冲突",
+        "接触/惰性: Ni 的 inert 与 3 位冲突",
+        "接触/惰性: Fi 的 inert 与 8 位冲突",
+        "接触/惰性: Se 的 contact 与 7 位冲突"
+      ]
+    }
+  ],
+  "model_a": [],
+  "evidence_chain": [
+    {
+      "quote": "他一个壮硕的老兵，真的能把闹事的人扛出门去。怎么说呢，我受他力量的庇护，就该尊重他的威严。",
+      "indicator": "IND 1D-A",
+      "element_hint": "Se",
+      "dimension_hint": "3D",
+      "position_hint": 4,
+      "confidence": 0.8,
+      "strength_signal": "weak",
+      "valued_signal": "valued",
+      "mental_signal": "vital",
+      "accepting_signal": "accepting",
+      "contact_signal": "contact",
+      "guide_signal": "guide",
+      "evidence_type": "stress",
+      "reason": "依赖他人的力量庇护",
+      "_original_dimension": "1D",
+      "qa_index": 4,
+      "qa_question": "4.\t你有没有吸过烟/喝过酒？当时是什么感受？"
+    },
+    {
+      "quote": "如果真的是来理论探讨的话，我不介意带着火药味儿的跟他聊大段的理论；如果是纯犯贱甚至会被骂爽，那就直接拉黑；如果对方的身份我根本得罪不起，大不了逃跑；如果是正面的恨意，那就奉陪到底了",
+      "indicator": "IND ST-A",
+      "element_hint": "Ti",
+      "dimension_hint": "3D",
+      "position_hint": 2,
+      "confidence": 0.8,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "producing",
+      "contact_signal": "contact",
+      "guide_signal": "separate",
+      "evidence_type": "flexibility",
+      "reason": "根据情境灵活切换逻辑应对策略",
+      "qa_index": 4,
+      "qa_question": "4.\t你有没有吸过烟/喝过酒？当时是什么感受？"
+    },
+    {
+      "quote": "我喝醉后只会说方言。",
+      "indicator": "IND VT-A",
+      "element_hint": "Si",
+      "dimension_hint": "4D",
+      "position_hint": 8,
+      "confidence": 0.6,
+      "strength_signal": "strong",
+      "valued_signal": "unvalued",
+      "mental_signal": "vital",
+      "accepting_signal": "accepting",
+      "contact_signal": "contact",
+      "guide_signal": "separate",
+      "evidence_type": "stress",
+      "reason": "失去防御机制后的自动化反应",
+      "qa_index": 4,
+      "qa_question": "4.\t你有没有吸过烟/喝过酒？当时是什么感受？"
+    },
+    {
+      "quote": "我海边长大的，不在意。但是酸和鱼腥会融合成一种全新的无法下咽的味道。",
+      "indicator": "IND F1-A",
+      "element_hint": "Si",
+      "dimension_hint": "4D",
+      "position_hint": 1,
+      "confidence": 0.8,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "accepting",
+      "contact_signal": "inert",
+      "guide_signal": "guide",
+      "evidence_type": "identity",
+      "reason": "对感官细节的敏锐和固执",
+      "qa_index": 6,
+      "qa_question": "9.\t你有喜欢的美学风格吗？如果有，你有在画画/沙盒游戏建筑中尽可能地体现这种美学风格吗？"
+    },
+    {
+      "quote": "我玩游戏侧重于技术方面，建筑和养成部分都为此服务，所以我只会选属性最高的。",
+      "indicator": "IND TM-A",
+      "element_hint": "Te",
+      "dimension_hint": "4D",
+      "position_hint": 1,
+      "confidence": 0.7,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "accepting",
+      "contact_signal": "inert",
+      "guide_signal": "guide",
+      "evidence_type": "identity",
+      "reason": "追求效率和最优解的客观逻辑",
+      "qa_index": 6,
+      "qa_question": "9.\t你有喜欢的美学风格吗？如果有，你有在画画/沙盒游戏建筑中尽可能地体现这种美学风格吗？"
+    },
+    {
+      "quote": "欣赏不了那种雅趣，但是水里长的金鱼草确实让我很眼热，老家的金鱼草没有这么漂亮的球状的叶子。",
+      "indicator": "IND F1-A",
+      "element_hint": "Si",
+      "dimension_hint": "4D",
+      "position_hint": 1,
+      "confidence": 0.7,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "accepting",
+      "contact_signal": "inert",
+      "guide_signal": "guide",
+      "evidence_type": "identity",
+      "reason": "关注具体的感官细节和对比",
+      "qa_index": 6,
+      "qa_question": "9.\t你有喜欢的美学风格吗？如果有，你有在画画/沙盒游戏建筑中尽可能地体现这种美学风格吗？"
+    },
+    {
+      "quote": "飞蛾贯穿在那些以方言唱出的新春的唱词里面，我能感受到一个令人颤栗的原型在降临，仿佛游戏里的繁育星神，一只巨大的虫主在笼罩着田野。",
+      "indicator": "IND TM-A",
+      "element_hint": "Ni",
+      "dimension_hint": "4D",
+      "position_hint": 1,
+      "confidence": 0.9,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "accepting",
+      "contact_signal": "inert",
+      "guide_signal": "guide",
+      "evidence_type": "identity",
+      "reason": "从具体事物中提取深层原型和本质",
+      "qa_index": 8,
+      "qa_question": "12.\t你有没有被自己朋友背刺过的经历呢？如果有，请说说你当时是怎么处理的。"
+    },
+    {
+      "quote": "我没法说一个好的抒情歌曲有什么特点，但是我可以告诉你这些以上的每一条特点都是这首歌如此抒情的原因，我也会把这些特点，活用在自己的创作上。",
+      "indicator": "IND ST-A",
+      "element_hint": "Ti",
+      "dimension_hint": "3D",
+      "position_hint": 2,
+      "confidence": 0.8,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "producing",
+      "contact_signal": "contact",
+      "guide_signal": "separate",
+      "evidence_type": "flexibility",
+      "reason": "灵活提取逻辑并应用于实践",
+      "qa_index": 9,
+      "qa_question": "1.\t你觉得“抒情歌曲”应该怎样才能有效地传递情绪？"
+    },
+    {
+      "quote": "我比泪圈大部分人要更人情世故，所以当我谈起来这些事情的时候多少带有一种炫耀。",
+      "indicator": "IND ST-A",
+      "element_hint": "Fe",
+      "dimension_hint": "3D",
+      "position_hint": 2,
+      "confidence": 0.6,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "producing",
+      "contact_signal": "contact",
+      "guide_signal": "separate",
+      "evidence_type": "flexibility",
+      "reason": "灵活使用社交技巧作为工具",
+      "qa_index": 13,
+      "qa_question": "7.你如何定义“人情世故”？你对“人情世故”有怎样的看法？"
+    },
+    {
+      "quote": "评估好收益与风险，消费要谨慎，投资要果决。",
+      "indicator": "IND TM-A",
+      "element_hint": "Te",
+      "dimension_hint": "4D",
+      "position_hint": 1,
+      "confidence": 0.7,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "accepting",
+      "contact_signal": "inert",
+      "guide_signal": "guide",
+      "evidence_type": "identity",
+      "reason": "基于客观逻辑的风险评估",
+      "qa_index": 14,
+      "qa_question": "8.\t你觉得借钱应该遵循什么样的原则？"
+    },
+    {
+      "quote": "我的仇家是我的私事，这只关乎我的自尊和快意，我要亲自惩罚他们，如果他们不知道因为得罪了谁而受苦，哪怕是走在路上，突然被大车撞死，都太便宜了。",
+      "indicator": "IND F1-A",
+      "element_hint": "Fi",
+      "dimension_hint": "4D",
+      "position_hint": 1,
+      "confidence": 0.8,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "accepting",
+      "contact_signal": "inert",
+      "guide_signal": "guide",
+      "evidence_type": "identity",
+      "reason": "强烈的内部价值判断和报复心",
+      "qa_index": 16,
+      "qa_question": "12. 某天，你的手中出现了两个药丸：红色是“可以让你讨厌的人倒霉，让欺负你的人遭到报应”，蓝色是“拥有创立一个类型学体系的能力”，你会怎么选择？你为什么这么选择？"
+    },
+    {
+      "quote": "我厌恶这种服从性测试，如果执意要强迫我吸烟，对不起，你不炒我我炒你，不受这气。",
+      "indicator": "IND F1-A",
+      "element_hint": "Fi",
+      "dimension_hint": "4D",
+      "position_hint": 1,
+      "confidence": 0.8,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "accepting",
+      "contact_signal": "inert",
+      "guide_signal": "guide",
+      "evidence_type": "identity",
+      "reason": "强烈的内部价值立场和自尊",
+      "qa_index": 19,
+      "qa_question": "1.\t当你的亲戚/同事给你递烟并鼓励你抽烟，你会怎么想怎么做？当领导说“都是社会人，不要拘谨”并鼓励你抽烟，你会怎么想怎么做？你对这两件事分别有什么看法？"
+    },
+    {
+      "quote": "让类型学真正变成可以指导实践的工作就一定要回归特质！",
+      "indicator": "IND ST-A",
+      "element_hint": "Te",
+      "dimension_hint": "4D",
+      "position_hint": 2,
+      "confidence": 0.7,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "producing",
+      "contact_signal": "contact",
+      "guide_signal": "separate",
+      "evidence_type": "flexibility",
+      "reason": "追求逻辑在实践中的灵活应用",
+      "_original_dimension": "3D",
+      "qa_index": 23,
+      "qa_question": "11.当有人反驳你的类型学理论“全是特质论”时，你会怎么回应？你对说你的类型学理论是“特质论”的人有什么看法？"
+    },
+    {
+      "quote": "我会在冲突开始酝酿的阶段就开始评判这个人有怀着什么目的，有多强的战意以及它的破坏性的上限在哪里，以及考虑我的抗压能力。",
+      "indicator": "IND TM-A",
+      "element_hint": "Ni",
+      "dimension_hint": "4D",
+      "position_hint": 1,
+      "confidence": 0.9,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "accepting",
+      "contact_signal": "inert",
+      "guide_signal": "guide",
+      "evidence_type": "identity",
+      "reason": "持续追踪局势走向和破坏上限"
+    },
+    {
+      "quote": "逐步适应那种痞了吧唧的大爹社交规则，他不尊重别人的边界的反面是他自己的边界也不在乎，我也可以没事儿拍他，开没品玩笑，包括随意用他的电脑。",
+      "indicator": "IND ST-A",
+      "element_hint": "Se",
+      "dimension_hint": "3D",
+      "position_hint": 2,
+      "confidence": 0.8,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "producing",
+      "contact_signal": "contact",
+      "guide_signal": "separate",
+      "evidence_type": "flexibility",
+      "reason": "灵活调整力量应对强势环境"
+    },
+    {
+      "quote": "我的优势是圆滑，尽可能不让人愤怒，但已然爆发的冲突我处理就很困难了。",
+      "indicator": "IND 1D-A",
+      "element_hint": "Se",
+      "dimension_hint": "3D",
+      "position_hint": 4,
+      "confidence": 0.8,
+      "strength_signal": "weak",
+      "valued_signal": "valued",
+      "mental_signal": "vital",
+      "accepting_signal": "accepting",
+      "contact_signal": "contact",
+      "guide_signal": "guide",
+      "evidence_type": "stress",
+      "reason": "回避直接冲突，无法处理爆发",
+      "_original_dimension": "1D"
+    },
+    {
+      "quote": "歌词用了第二人称，既做到了直接抒情，同时又拉开了我和你的距离，把我摆在了一个远远观望而不入局的位置，这个观察者的口吻反而更凸显了独行者的凄美。",
+      "indicator": "IND TM-A",
+      "element_hint": "Ni",
+      "dimension_hint": "4D",
+      "position_hint": 1,
+      "confidence": 0.8,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "accepting",
+      "contact_signal": "inert",
+      "guide_signal": "guide",
+      "evidence_type": "identity",
+      "reason": "洞察深层结构和情感距离的本质"
+    },
+    {
+      "quote": "在来回的交流中学习建立自己的气场。在正式沟通场合保持严肃，认真听他像社会大哥一样讲他的经验，有用的就学，没用的也不杠。",
+      "indicator": "IND ST-A",
+      "element_hint": "Te",
+      "dimension_hint": "4D",
+      "position_hint": 2,
+      "confidence": 0.7,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "producing",
+      "contact_signal": "contact",
+      "guide_signal": "separate",
+      "evidence_type": "flexibility",
+      "reason": "灵活提取有用信息并建立规则",
+      "_original_dimension": "3D"
+    },
+    {
+      "quote": "太多的N人完全没有透过本质看表象的能力，在抽象的理论构建上绞尽脑汁却不愿意看人真实的表现，臆想人背后的原型却看不到人当下的状态。",
+      "indicator": "IND ST-A",
+      "element_hint": "Se",
+      "dimension_hint": "3D",
+      "position_hint": 2,
+      "confidence": 0.7,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "producing",
+      "contact_signal": "contact",
+      "guide_signal": "separate",
+      "evidence_type": "flexibility",
+      "reason": "强调关注当下的真实表现"
+    },
+    {
+      "quote": "梦先于身体和思维，告诉我转化正在进行",
+      "indicator": "IND TM-A",
+      "element_hint": "Ni",
+      "dimension_hint": "4D",
+      "position_hint": null,
+      "confidence": 0.8,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "accepting",
+      "contact_signal": "inert",
+      "guide_signal": "guide",
+      "evidence_type": "identity",
+      "reason": "梦境作为时间预感"
+    },
+    {
+      "quote": "在冲突酝酿阶段评判对方目的、战意及破坏上限",
+      "indicator": "IND TM-A",
+      "element_hint": "Ni",
+      "dimension_hint": "4D",
+      "position_hint": null,
+      "confidence": 0.7,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "accepting",
+      "contact_signal": "inert",
+      "guide_signal": "guide",
+      "evidence_type": "identity",
+      "reason": "预判未来冲突走向"
+    },
+    {
+      "quote": "冬夜冻到麻木，回屋从麻木到烫到发痒，感觉幸福却空虚",
+      "indicator": "IND F1-A",
+      "element_hint": "Si",
+      "dimension_hint": "4D",
+      "position_hint": null,
+      "confidence": 0.8,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "accepting",
+      "contact_signal": "inert",
+      "guide_signal": "guide",
+      "evidence_type": "identity",
+      "reason": "对极端体感的敏感"
+    },
+    {
+      "quote": "酸和鱼腥融合成一种全新的无法下咽的味道",
+      "indicator": "IND F1-A",
+      "element_hint": "Si",
+      "dimension_hint": "4D",
+      "position_hint": null,
+      "confidence": 0.7,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "accepting",
+      "contact_signal": "inert",
+      "guide_signal": "guide",
+      "evidence_type": "identity",
+      "reason": "对味觉细节的排斥"
+    },
+    {
+      "quote": "苏州旅游景点独立预约卖票，没有大通票，堵得进不去",
+      "indicator": "IND F1-A",
+      "element_hint": "Si",
+      "dimension_hint": "4D",
+      "position_hint": null,
+      "confidence": 0.6,
+      "strength_signal": "strong",
+      "valued_signal": "valued",
+      "mental_signal": "mental",
+      "accepting_signal": "accepting",
+      "contact_signal": "inert",
+      "guide_signal": "guide",
+      "evidence_type": "identity",
+      "reason": "对物理环境规划的厌恶"
+    }
+  ],
+  "preprocess": {
+    "mode": "qa_answers_only",
+    "source": "edited_qa_json",
+    "qa_count": 25,
+    "original_length": 5865,
+    "analysis_length": 5865,
+    "qa_items": [
+      {
+        "question": "1.\t你有没有遇见过“下雨了发现自己没带伞”的情况？如果有，你是怎么处理的？",
+        "answer": "如果是字面意义的下雨没带伞，优先找周围熟人借，如果没有我会找最近便利店买一次性雨衣，或者买一把伞。如果地铁站近就乘地铁。"
+      },
+      {
+        "question": "2.\t你会随手关闭自动续费吗？为什么？",
+        "answer": "不会，因为开自动续费时我着急使用，而且现在的app设计也都是让你开启容易关闭难，退出去找关闭页面非常费事，但我会时不时检查自动续费并关闭。尽管如此，还是偶尔因未关自动续费花冤枉钱。看到这道题我又去检查了一下，确认都已经关了。"
+      },
+      {
+        "question": "3.\t你有没有尝试过用塔罗牌占卜一个人的内心想法？占卜出来的时候你心里是怎么想的？",
+        "answer": "没有。"
+      },
+      {
+        "question": "4.\t你有没有吸过烟/喝过酒？当时是什么感受？",
+        "answer": "没吸过烟，喝过酒。喝酒就是失去了很多内心的防御机制，什么政治不正确的话都敢说，说完了自己还不记得。然后头疼就是走路走不稳，就这样了。而且我喝醉后只会说方言。\n5.\t你有和一个看上去很强势威严很有压迫感的人共事的经历吗？如果有，请说说你们的相处过程。\n有的，我的同事，大我将近十岁，他是退役军人，而且之前干过内部纠察审讯之类的工作，非常健壮，形象威严，相处的时候也没啥边界感，就是主动肢体接触啊，过去啪一下，拍一下肩膀，而且力气还特别大，也会随手开我抽屉，翻我包。\n怎么应付，首先，我不能怂，逐步适应那种痞了吧唧的大爹社交规则，他不尊重别人的边界的反面是他自己的边界也不在乎，我也可以没事儿拍他，开没品玩笑，包括随意用他的电脑(我的电脑是临时攒出来的，缺很多功能，经常需要借其他人的)，在来回的交流中学习建立自己的气场。在正式沟通场合保持严肃，认真听他像社会大哥一样讲他的经验，有用的就学，没用的也不杠，他提出的觉得我做的不好的，不涉及原则我就改。威压和强势的人当然有他的好处，比方说我们的工作也偶尔会有冲突，我的优势是圆滑，尽可能不让人愤怒，但已然爆发的冲突我处理就很困难了，但他一个壮硕的老兵，真的能把闹事的人扛出门去。怎么说呢，我受他力量的庇护，就该尊重他的威严。\n6.\t你和网上的人吵架是怎样的模式？并且尝试预测一下出问卷的我吵架会是怎样的模式。\n我觉得你会绕过汴京，直接毒辣的人身攻击的方式咬住不放，或许会呼朋唤友，因为你在问卷里反复提及马蜂和害怕昆虫，一个人眼中最恐怖的东西，就是他攻击别人最锋利的武器，所以我感觉你攻击起来的样子会像马蜂。\n我先写了后面一问，后来反思我自己吵架也是上面那种模式。当然我会在冲突开始酝酿的阶段就开始评判这个人有怀着什么目的，有多强的战意以及它的破坏性的上限在哪里，以及考虑我的抗压能力(比方我在公示期)。如果真的是来理论探讨的话，我不介意带着火药味儿的跟他聊大段的理论；如果是纯犯贱甚至会被骂爽，那就直接拉黑；如果对方的身份我根本得罪不起，大不了逃跑；如果是正面的恨意，那就奉陪到底了。"
+      },
+      {
+        "question": "7.\t你在商场听到喜欢的歌手的歌会怎么想怎么做？",
+        "answer": "会很高兴，觉得很有品味，如果身边有人会向他讲这个歌手的事情，且推荐一些歌手的其他歌曲或者相似歌手。一个人的话适度走慢点，听完它。\n8.\t你/你的朋友捅过马蜂窝吗？如果没有，说说你的一些“冒险”经历。\n我们骑着自行车，挑战通过一座未完工的，还没装护栏的窄桥。那座桥是步行桥，有几百米长，而且有很大的起伏，下面是一个大湖，但湖水很浅，淹不死人但有可能会摔伤。"
+      },
+      {
+        "question": "9.\t你有喜欢的美学风格吗？如果有，你有在画画/沙盒游戏建筑中尽可能地体现这种美学风格吗？",
+        "answer": "我会喜欢国风或欧洲中世纪风格，喜欢冷色调，讨厌沙漠岩浆、光秃的怪石之类的环境。但我不会体现这种风格，我玩游戏侧重于技术方面，建筑和养成部分都为此服务，所以我只会选属性最高的。\n10.\t你有和别人出去旅游过吗？如果有，说说你们一起旅游的经历。如果习惯自己旅游，说说自己旅游可能遇到的困难。\n最近和对象一起去了苏州，体验不是很好，首先是饮食不习惯，当时我们从网上了解的是松鼠桂鱼是可以吃的，苏式面不好吃。去了以后第一顿就点了松鼠桂鱼，结果可把我们恶心坏了，我真的特别讨厌炸鱼配酸味，酸本身不难吃，鱼的腥味在我看来是鱼本味的一部分，我海边长大的，不在意。但是酸和鱼腥会融合成一种全新的无法下咽的味道。我们那家餐馆每一桌都有两个外地人对着松鼠桂鱼面露难色。苏式面反而不错，尤其是响油鳝丝卤的。在苏州吃的最好的是徐州烧烤。购物的体验也不好，当地的商人有种很小气而且钻钱眼里的感觉，我们去当地的旗袍城买旗袍，有一些店甚至试穿都要收费，而且都是挂超高的标价，等顾客讨价， 然后看人下菜碟。我们讨价的过程中，他们甚至不让说出数字，非要让我们在计算器上按出来，因为怕别的顾客听到，哦，店老板嘴确实甜，但是甜的有点虚浮。至于逛的景色，拙政园看了也一般，嗯，欣赏不了那种雅趣，但是水里长的金鱼草确实让我很眼热，老家的金鱼草没有这么漂亮的球状的叶子。然后苏博没约上，去了虎丘体验体验还可以，风景和古建筑都不错，但是面积小又和其他景区距离远，苏州旅游最不爽的是所有景点独立预约卖票，没有大通票或者方便规划的路线，像山塘街之类的地方就堵的根本就进不去，总之不太想再去了，倒是路过无锡去惠山古城玩得特别尽兴，不过这我答得已经够长了。"
+      },
+      {
+        "question": "11.\t你有没有踩过狗屎呢？当时你有什么想法？是怎么做的？你看到别人踩到狗屎或者是在网上抱怨“踩了狗屎”的时候你会有什么想法？",
+        "answer": "当时觉得谁这么缺德养狗不铲屎，主人是真的屎，狗屎还行，有一股新出场的青春狗味——我因为现任，爱屋及乌对狗特别包容。我去草丛里走了一圈儿，把它蹭干净了。其他人踩了我没什么想法，又不是我。"
+      },
+      {
+        "question": "12.\t你有没有被自己朋友背刺过的经历呢？如果有，请说说你当时是怎么处理的。",
+        "answer": "13.\t你家住农村，或你有没有去过农村呢？说说你在农村的美好回忆和你在农村最害怕的虫子。\n外婆家在农村，非典的时候在外婆家躲过疫情。美好回忆是一家人围坐起来边剥玉米边说笑，一群鸡围在人旁边等着剥出来的吃虫子和坏的玉米粒。用灶台做饭，我特别喜欢玩火。\n害怕的昆虫是飞蛾，准确说是棉铃虫和其他几种棉花害虫的蛾子。我老家主种棉花，每到春节会有一个盛大的烤年蛾的仪式，祭拜和安抚飞蛾，祈求来年的收成。跟小麦产区拜蝗神庙是一样的，这是农民最深重的恐惧。飞蛾贯穿在那些以方言唱出的新春的唱词里面，我能感受到一个令人颤栗的原型在降临，仿佛游戏里的繁育星神，一只巨大的虫主在笼罩着田野。\n14.\t你有大晚上出去玩，或夜不归宿的经历吗？如果有说说当时的感受。\n成年人无所谓归不归宿，只说学生时代的时候。初中时我和几个发小经常半夜去市郊一条大河旁边，河边有很多大块的石头，我们喜欢在一块儿石头上站着。一般是深秋或者冬天去，我们在石头上合唱三傻大闹宝莱坞的主题曲，冬夜接近零下10度，过段时间身上就开始发冷，腿会冻到麻木，然后回到开着暖气的家，慢慢的感觉身体从麻木到烫到发痒，就感觉很幸福却有一种难以言说的空虚。\n15.\t讲讲你做过最难懂的socionics问卷。\n他妈的，全都是伪人！没一个是人！！！\n【看法类】"
+      },
+      {
+        "question": "1.\t你觉得“抒情歌曲”应该怎样才能有效地传递情绪？",
+        "answer": "以Lake of tears-the organ为例。采用了较慢的拍速，自然小调音阶，营造了忧郁悲伤的氛围。和弦都是最简单的大小三和弦，Gm-Dm-F-Gm的进行，和声上非常简单，反而适合表达均一纯粹的感情。\n主歌的琶音用了颤音效果器，营造一种凄凉潮湿的氛围感，而伴奏中的管风琴又了绵长的和声音效。\n鼓点极为简单，但是感情充沛，我没法用音乐的知识给你分析，但鼓是点睛之笔，我很难说一台架子鼓是忧郁的，但确实如此。\nsolo，lake of tears的吉他手是个手癖战士，所有的solo听着都像同一段solo，但是确实是那种抒情性特别好的“大solo”，然后此曲大量使用双音推弦营造痛彻撕裂的效果。\n然后是歌词，歌词用了第二人称，“我看到你与悲伤同行，我能从你的眼中看到”，既做到了直接抒情，同时又拉开了我和你的距离，把我摆在了一个远远观望而不入局的位置，这个观察者的口吻反而更凸显了独行者的凄美。\n我没法说一个好的抒情歌曲有什么特点，但是我可以告诉你这些以上的每一条特点都是这首歌如此抒情的原因，我也会把这些特点，活用在自己的创作上。"
+      },
+      {
+        "question": "2.\t你觉得游戏更有害，还是抽烟更有害？如果你的答案在两个选项（“游戏更有害”和“抽烟更有害”）之外，可以谈谈你对这个题目的其他理解。",
+        "answer": "抽烟更有害，游戏不会伤害他人。而且游戏谈不上成瘾性，一个人能游戏成瘾只是因为社会能给的其他选择太少了，但烟瘾是生理方面的改变。"
+      }
+    ],
+    "indicator_hit_rate": 1.0,
+    "ref_cards": "reference_cards_socionics.md"
+  },
+  "input_encoding": "utf-8",
+  "extraction_source": "llm_synthesized",
+  "llm_error": null,
+  "llm_raw_path": null,
+  "llm_request": null,
+  "schema_invalid": false,
+  "dichotomy_signals": {
+    "E_vs_I": {
+      "lean": "I",
+      "confidence": 0.7,
+      "evidence": [
+        "我天生就活在自己的世界里，别人不容易看透",
+        "我比泪圈大部分人要更人情世故，所以当我谈起来这些事情的时候多少带有一种炫耀"
+      ]
+    },
+    "N_vs_S": {
+      "lean": "N",
+      "confidence": 0.8,
+      "evidence": [
+        "我能感受到一个令人颤栗的原型在降临，仿佛游戏里的繁育星神，一只巨大的虫主在笼罩着田野",
+        "梦中的兄弟往往是阴影的象征，这是阴影对我的保护，而野牛是一个极度阳性力量的象征"
+      ]
+    },
+    "T_vs_F": {
+      "lean": "T",
+      "confidence": 0.6,
+      "evidence": [
+        "我玩游戏侧重于技术方面，建筑和养成部分都为此服务，所以我只会选属性最高的",
+        "评估好收益与风险，消费要谨慎，投资要果决"
+      ]
+    },
+    "R_vs_Ir": {
+      "lean": "Ir",
+      "confidence": 0.7,
+      "evidence": [
+        "好的创作应该让无意识自然的流溢，而不是用某种框架，把他们全部都局限在一个合理与平庸的界限之内",
+        "我们已然在限制中，就不要在限制上再设限制了"
+      ]
+    }
+  },
+  "laning_signals": {
+    "democratic": {
+      "lean": "democratic",
+      "confidence": 0.7,
+      "evidence": [
+        "我的仇家是我的私事，这只关乎我的自尊和快意，我要亲自惩罚他们"
+      ]
+    },
+    "merry": {
+      "lean": "serious",
+      "confidence": 0.7,
+      "evidence": [
+        "我会在冲突开始酝酿的阶段就开始评判这个人有怀着什么目的，有多强的战意以及它的破坏性的上限在哪里"
+      ]
+    },
+    "judicious": {
+      "lean": "decisive",
+      "confidence": 0.6,
+      "evidence": [
+        "评估好收益与风险，消费要谨慎，投资要果决"
+      ]
+    }
+  },
+  "laning_tiebreak": null,
+  "conflicts": [
+    {
+      "topic": "Se 1D vs 3D",
+      "evidence": [
+        "已然爆发的冲突我处理就很困难了",
+        "逐步适应那种痞了吧唧的大爹社交规则，他不尊重别人的边界的反面是他自己的边界也不在乎，我也可以没事儿拍他"
+      ],
+      "reason": "既表现出对直接冲突的回避和无力（1D），又表现出在特定情境下灵活使用力量规则的能力（3D）",
+      "conflict_kind": "dimension"
+    },
+    {
+      "topic": "Te 1D vs 4D",
+      "evidence": [
+        "我玩游戏侧重于技术方面，建筑和养成部分都为此服务，所以我只会选属性最高的",
+        "让类型学真正变成可以指导实践的工作就一定要回归特质！"
+      ],
+      "reason": "既表现出对客观效率和最优解的执着（4D），又表现出灵活应用逻辑于实践的工具性（3D/2D）",
+      "conflict_kind": "dimension"
+    }
+  ],
+  "insufficiency": [
+    "缺乏对 Fe 和 Fi 在日常互动中的自然流露证据，难以区分主导和创造",
+    "缺乏对 Ne 和 Ni 在外部机会和内部时间感上的明确区分证据",
+    "问答覆盖不足：缺少 Q1, Q2, Q3, Q5, Q7, Q10, Q11, Q12, Q15, Q17, Q18, Q20 的结构化证据"
+  ],
+  "uncertainty_reasons": [
+    "前两名分差 0.000 小于 0.12，赖宁信号不足无法决断。",
+    "最高候选存在 13 条硬规则冲突。",
+    "七大二分法全局校验存在张力：接受/生产: Fi 的 accepting 与 8 位冲突；接触/惰性: Fi 的 inert 与 8 位冲突",
+    "存在 2 条维度矛盾冲突（同元素在不同题目中表现差异极大）。",
+    "缺乏对 Fe 和 Fi 在日常互动中的自然流露证据，难以区分主导和创造",
+    "缺乏对 Ne 和 Ni 在外部机会和内部时间感上的明确区分证据",
+    "问答覆盖不足：缺少 Q1, Q2, Q3, Q5, Q7, Q10, Q11, Q12, Q15, Q17, Q18, Q20 的结构化证据"
+  ],
+  "refinement": {
+    "stage": "L1",
+    "axis": "Ni_vs_Si",
+    "axis_description": "区分 Ni（时间趋势/预感）与 Si（感官记忆/体感舒适）——找文本里关于时间感、未来走向、过去经验、身体舒适度的描述",
+    "competing_types": [
+      "LIE",
+      "LSE"
+    ],
+    "added_quotes": 5
+  },
+  "synthesis_pass": {
+    "verdict_type": "LIE",
+    "narrative": "整体文字展现出强烈的效率导向和结果导向（Te主导），习惯将一切事物（包括社交、游戏、甚至吵架）视为需要评估、利用或规避的系统性变量。同时，其认知模式高度依赖对事物底层逻辑、潜在意图和长远走向的预判（Ni创造），语言节奏偏向静态的结构化分析和框架定义，而非动态的过程描述。这种以效率为最高准则、以洞察为工具的架构，与LIE的Model A高度一致。",
+    "coherence_confidence": 0.85,
+    "main_competitor": "ILI",
+    "why_not_competitor": "ILI的Ni主导通常表现为对原型、象征和内在意义的沉浸式体验，而此人虽然提及原型，但核心驱动力始终是实用性的效率评估和结果控制，缺乏ILI典型的内省式、审美化的静态沉浸感。",
+    "_llm_raw_path": "D:\\guCodex\\shiroProject\\kernel1\\logs\\llm_raw_1778908103700.txt"
+  },
+  "arbitration": {
+    "voters": {
+      "algorithm": "IEI",
+      "laning": null,
+      "synthesis": "LIE"
+    },
+    "decision": "uncertain",
+    "reason": "综合层 verdict=LIE 不在算法 top-3 内，不采信，维持不确定。"
+  },
+  "clarification_request": {
+    "axis": "Ni_vs_Si",
+    "axis_description": "区分 Ni（时间趋势/预感）与 Si（感官记忆/体感舒适）——找文本里关于时间感、未来走向、过去经验、身体舒适度的描述",
+    "competing_types": [
+      "LIE",
+      "LSE"
+    ],
+    "questions": [
+      "当你面对一个复杂问题时，你更倾向于凭直觉预判未来的发展趋势来制定计划，还是更依赖过去类似的经验教训来指导行动？",
+      "在长时间工作或学习后，你更容易感到精神疲惫需要独处恢复，还是身体疲惫需要休息放松？",
+      "当环境突然变得混乱或嘈杂时，你更在意的是这种变化对未来计划的影响，还是当下的感官不适？"
+    ],
+    "blocking_reason": "LIE 和 LSE 共享 1st=Te，区分钥匙是 2nd：Ni vs Si，但当前证据缺少这两个元素。"
+  },
+  "report": "1. **判型状态**：待澄清（经 L1 定向重提取，轴=Ni_vs_Si，补充 5 条证据）\n2. **类型结论**：竞争类型：IEI(1.000)、ILI(1.000)、SEI(1.000)\n3. **输入预处理**：\n- 输入预处理：qa_answers_only，问答组 25，分析文本 5865 / 原文 5865 字。\n4. **核心证据链**：\n- “他一个壮硕的老兵，真的能把闹事的人扛出门去。怎么说呢，我受他力量的庇护，就该尊重他的威严。” -> IND 1D-A，Se / 3D（Q4; 强弱=weak; 重视=valued; 环路=vital; 证据=stress）。\n- “如果真的是来理论探讨的话，我不介意带着火药味儿的跟他聊大段的理论；如果是纯犯贱甚至会被骂爽，那就直接拉黑；如果对方的身份我根本得罪不起，大不了逃跑；如果是正面的恨意，那就奉陪到底了” -> IND ST-A，Ti / 3D（Q4; 强弱=strong; 重视=valued; 环路=mental; 证据=flexibility）。\n- “我喝醉后只会说方言。” -> IND VT-A，Si / 4D（Q4; 强弱=strong; 重视=unvalued; 环路=vital; 证据=stress）。\n- “我海边长大的，不在意。但是酸和鱼腥会融合成一种全新的无法下咽的味道。” -> IND F1-A，Si / 4D（Q6; 强弱=strong; 重视=valued; 环路=mental; 证据=identity）。\n- “我玩游戏侧重于技术方面，建筑和养成部分都为此服务，所以我只会选属性最高的。” -> IND TM-A，Te / 4D（Q6; 强弱=strong; 重视=valued; 环路=mental; 证据=identity）。\n- “欣赏不了那种雅趣，但是水里长的金鱼草确实让我很眼热，老家的金鱼草没有这么漂亮的球状的叶子。” -> IND F1-A，Si / 4D（Q6; 强弱=strong; 重视=valued; 环路=mental; 证据=identity）。\n- “飞蛾贯穿在那些以方言唱出的新春的唱词里面，我能感受到一个令人颤栗的原型在降临，仿佛游戏里的繁育星神，一只巨大的虫主在笼罩着田野。” -> IND TM-A，Ni / 4D（Q8; 强弱=strong; 重视=valued; 环路=mental; 证据=identity）。\n- “我没法说一个好的抒情歌曲有什么特点，但是我可以告诉你这些以上的每一条特点都是这首歌如此抒情的原因，我也会把这些特点，活用在自己的创作上。” -> IND ST-A，Ti / 3D（Q9; 强弱=strong; 重视=valued; 环路=mental; 证据=flexibility）。\n- “我比泪圈大部分人要更人情世故，所以当我谈起来这些事情的时候多少带有一种炫耀。” -> IND ST-A，Fe / 3D（Q13; 强弱=strong; 重视=valued; 环路=mental; 证据=flexibility）。\n- “评估好收益与风险，消费要谨慎，投资要果决。” -> IND TM-A，Te / 4D（Q14; 强弱=strong; 重视=valued; 环路=mental; 证据=identity）。\n- “我的仇家是我的私事，这只关乎我的自尊和快意，我要亲自惩罚他们，如果他们不知道因为得罪了谁而受苦，哪怕是走在路上，突然被大车撞死，都太便宜了。” -> IND F1-A，Fi / 4D（Q16; 强弱=strong; 重视=valued; 环路=mental; 证据=identity）。\n- “我厌恶这种服从性测试，如果执意要强迫我吸烟，对不起，你不炒我我炒你，不受这气。” -> IND F1-A，Fi / 4D（Q19; 强弱=strong; 重视=valued; 环路=mental; 证据=identity）。\n- “让类型学真正变成可以指导实践的工作就一定要回归特质！” -> IND ST-A，Te / 4D（Q23; 强弱=strong; 重视=valued; 环路=mental; 证据=flexibility）。\n- “我会在冲突开始酝酿的阶段就开始评判这个人有怀着什么目的，有多强的战意以及它的破坏性的上限在哪里，以及考虑我的抗压能力。” -> IND TM-A，Ni / 4D（强弱=strong; 重视=valued; 环路=mental; 证据=identity）。\n- “逐步适应那种痞了吧唧的大爹社交规则，他不尊重别人的边界的反面是他自己的边界也不在乎，我也可以没事儿拍他，开没品玩笑，包括随意用他的电脑。” -> IND ST-A，Se / 3D（强弱=strong; 重视=valued; 环路=mental; 证据=flexibility）。\n- “我的优势是圆滑，尽可能不让人愤怒，但已然爆发的冲突我处理就很困难了。” -> IND 1D-A，Se / 3D（强弱=weak; 重视=valued; 环路=vital; 证据=stress）。\n- “歌词用了第二人称，既做到了直接抒情，同时又拉开了我和你的距离，把我摆在了一个远远观望而不入局的位置，这个观察者的口吻反而更凸显了独行者的凄美。” -> IND TM-A，Ni / 4D（强弱=strong; 重视=valued; 环路=mental; 证据=identity）。\n- “在来回的交流中学习建立自己的气场。在正式沟通场合保持严肃，认真听他像社会大哥一样讲他的经验，有用的就学，没用的也不杠。” -> IND ST-A，Te / 4D（强弱=strong; 重视=valued; 环路=mental; 证据=flexibility）。\n- “太多的N人完全没有透过本质看表象的能力，在抽象的理论构建上绞尽脑汁却不愿意看人真实的表现，臆想人背后的原型却看不到人当下的状态。” -> IND ST-A，Se / 3D（强弱=strong; 重视=valued; 环路=mental; 证据=flexibility）。\n- “梦先于身体和思维，告诉我转化正在进行” -> IND TM-A，Ni / 4D（强弱=strong; 重视=valued; 环路=mental; 证据=identity）。\n- “在冲突酝酿阶段评判对方目的、战意及破坏上限” -> IND TM-A，Ni / 4D（强弱=strong; 重视=valued; 环路=mental; 证据=identity）。\n- “冬夜冻到麻木，回屋从麻木到烫到发痒，感觉幸福却空虚” -> IND F1-A，Si / 4D（强弱=strong; 重视=valued; 环路=mental; 证据=identity）。\n- “酸和鱼腥融合成一种全新的无法下咽的味道” -> IND F1-A，Si / 4D（强弱=strong; 重视=valued; 环路=mental; 证据=identity）。\n- “苏州旅游景点独立预约卖票，没有大通票，堵得进不去” -> IND F1-A，Si / 4D（强弱=strong; 重视=valued; 环路=mental; 证据=identity）。\n5. **候选解释**：\n- IEI(1.000)：1st=Ni，2nd=Fe；4D主导证据=4.100，1st主轴分=9.338，3D证据=0.600，2nd创造支持=2.340，7th忽略风险=0.780；匹配：Ni 在 1 位匹配 4D: 飞蛾贯穿在那些以方言唱出的新春的唱词里面，我能感受到一个；Fe 在 2 位匹配 3D: 我比泪圈大部分人要更人情世故，所以当我谈起来这些事情的时；张力：Se 在 5 位不匹配 3D: 他一个壮硕的老兵，真的能把闹事的人扛出门去。怎么说呢，我；硬冲突：Se 位置 5 与 3D 证据冲突；Ti 强弱信号 strong 与位置 6 不一致；全局校验=4.330，匹配：接受/生产: Ni 符合 accepting；接受/生产: Fe 符合 producing，张力：接受/生产: Fi 的 accepting 与 8 位冲突；接触/惰性: Fi 的 inert 与 8 位冲突\n- ILI(1.000)：1st=Ni，2nd=Te；4D主导证据=4.100，1st主轴分=9.338，3D证据=0.000，2nd创造支持=6.580，7th忽略风险=2.380；匹配：Ni 在 1 位匹配 4D: 飞蛾贯穿在那些以方言唱出的新春的唱词里面，我能感受到一个；张力：Se 在 5 位不匹配 3D: 他一个壮硕的老兵，真的能把闹事的人扛出门去。怎么说呢，我；硬冲突：Se 位置 5 与 3D 证据冲突；Ti 重视信号 valued 与位置 8 不一致；全局校验=3.646，匹配：接受/生产: Ni 符合 accepting；接受/生产: Fe 符合 producing，张力：接受/生产: Fi 的 accepting 与 6 位冲突；接触/惰性: Fe 的 contact 与 4 位冲突\n- SEI(1.000)：1st=Si，2nd=Fe；4D主导证据=4.200，1st主轴分=9.219，3D证据=0.600，2nd创造支持=2.340，7th忽略风险=0.780；匹配：Se 在 7 位匹配 3D: 他一个壮硕的老兵，真的能把闹事的人扛出门去。怎么说呢，我；Si 在 1 位匹配 4D: 我喝醉后只会说方言。；张力：Ti 在 6 位不匹配 3D: 如果真的是来理论探讨的话，我不介意带着火药味儿的跟他聊大；硬冲突：Se 强弱信号 weak 与位置 7 不一致；Se 重视信号 valued 与位置 7 不一致；全局校验=1.081，匹配：接受/生产: Ni 符合 accepting；接受/生产: Fe 符合 producing，张力：接受/生产: Fi 的 accepting 与 8 位冲突；接触/惰性: Ni 的 inert 与 3 位冲突\n6. **七大二分法核对**：\n- 已纳入接受/生产、接触/惰性、引导/分离、静态/动态类型、理性/非理性整模型校验；结果体现在候选解释的全局校验项。\n- 命中 IND 指标：IND 1D-A→Se/3D, IND ST-A→Ti/3D, IND VT-A→Si/4D, IND F1-A→Si/4D, IND TM-A→Te/4D, IND F1-A→Si/4D\n6.5. **综合推理层**：\n- 综合推理判断：LIE，置信度 0.85\n  理由：整体文字展现出强烈的效率导向和结果导向（Te主导），习惯将一切事物（包括社交、游戏、甚至吵架）视为需要评估、利用或规避的系统性变量。同时，其认知模式高度依赖对事物底层逻辑、潜在意图和长远走向的预判（Ni创造），语言节奏偏向静态的结构化分析和框架定义，而非动态的过程描述。这种以效率为最高准则、以洞察为工具的架构，与LIE的Model A高度一致。\n  排除 ILI：ILI的Ni主导通常表现为对原型、象征和内在意义的沉浸式体验，而此人虽然提及原型，但核心驱动力始终是实用性的效率评估和结果控制，缺乏ILI典型的内省式、审美化的静态沉浸感。\n- 三方仲裁决策：uncertain，原因：综合层 verdict=LIE 不在算法 top-3 内，不采信，维持不确定。\n7. **完整 Model A 架构图**：判型不确定，暂不输出单一 Model A。\n8. **不确定点与建议追问**：\n- 前两名分差 0.000 小于 0.12，赖宁信号不足无法决断。\n- 最高候选存在 13 条硬规则冲突。\n- 七大二分法全局校验存在张力：接受/生产: Fi 的 accepting 与 8 位冲突；接触/惰性: Fi 的 inert 与 8 位冲突\n- 存在 2 条维度矛盾冲突（同元素在不同题目中表现差异极大）。\n- 缺乏对 Fe 和 Fi 在日常互动中的自然流露证据，难以区分主导和创造\n- 缺乏对 Ne 和 Ni 在外部机会和内部时间感上的明确区分证据\n- 问答覆盖不足：缺少 Q1, Q2, Q3, Q5, Q7, Q10, Q11, Q12, Q15, Q17, Q18, Q20 的结构化证据\n- [维度矛盾] 既表现出对直接冲突的回避和无力（1D），又表现出在特定情境下灵活使用力量规则的能力（3D）\n- [维度矛盾] 既表现出对客观效率和最优解的执着（4D），又表现出灵活应用逻辑于实践的工具性（3D/2D）\n9. **下一轮追问建议**：\n- 【阻塞轴：区分 Ni（时间趋势/预感）与 Si（感官记忆/体感舒适）——找文本里关于时间感、未来走向、过去经验、身体舒适度的描述】\n- 当你面对一个复杂问题时，你更倾向于凭直觉预判未来的发展趋势来制定计划，还是更依赖过去类似的经验教训来指导行动？\n- 在长时间工作或学习后，你更容易感到精神疲惫需要独处恢复，还是身体疲惫需要休息放松？\n- 当环境突然变得混乱或嘈杂时，你更在意的是这种变化对未来计划的影响，还是当下的感官不适？"
+}

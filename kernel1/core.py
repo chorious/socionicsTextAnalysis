@@ -128,6 +128,13 @@ class AnalyzeOptions:
     no_first_4d_ceiling: float = 0.58
     denom_quote_cap: int = 12
     ref_cards_filename: str | None = None
+    # v0.10 confidence 校准参数
+    saturation_top_band: tuple[float, float] = (0.95, 1.0)  # Top-3 撞顶检测的得分区间
+    saturation_max_spread: float = 0.05  # Top-1 与 Top-3 差距 < 此值视为撞顶
+    uncertain_confidence_cap: float = 0.5  # status != certain 时 confidence 上限
+    saturation_confidence: float = 0.4  # 撞顶 / arbitration 不一致时强制 confidence
+    partial_recovered_cap: float = 0.74  # JSON 部分恢复时 confidence 上限
+    max_4d_per_person: int = 2  # 一个类型最多允许多少个 4D 元素（主导+演示）
 
 
 class Kernel1Analyzer:
@@ -1039,7 +1046,7 @@ class Kernel1Analyzer:
                     "hard_conflict_count": len(rule_conflicts),
                 }
             )
-        return sorted(
+        sorted_ranked = sorted(
             ranked,
             key=lambda item: (
                 item["first_4d_support"] > 0,
@@ -1048,6 +1055,42 @@ class Kernel1Analyzer:
             ),
             reverse=True,
         )
+        # v0.10 C2: 撞顶检测,挂在 extraction 上供 _build_result 消费
+        saturation_event = self._detect_saturation(sorted_ranked)
+        if saturation_event:
+            extraction["_saturation_event"] = saturation_event
+        return sorted_ranked
+
+    def _detect_saturation(self, ranked: list[dict[str, Any]]) -> dict[str, Any] | None:
+        """检测 Top-2/Top-3 撞顶:多个候选 score 都贴近 1.0 → 算法分不开。
+
+        触发条件:Top-1 和 Top-2 都在 saturation_top_band(默认 [0.95, 1.0]),
+        且 Top-1 - Top-2 < saturation_max_spread(默认 0.05)。
+        如果 Top-3 也在带内且 Top-1 - Top-3 < spread,事件 event 为 top_band_collision,
+        否则为 top2_collision。
+        单点 1.0(Top-2 < 0.95)不触发,避免误伤合法高分独占 Top-1 的 case。
+        """
+        if len(ranked) < 2:
+            return None
+        lo, hi = self.options.saturation_top_band
+        max_spread = self.options.saturation_max_spread
+        scores = [float(c.get("score") or 0.0) for c in ranked[:3]]
+        if not (lo <= scores[0] <= hi and lo <= scores[1] <= hi):
+            return None
+        if scores[0] - scores[1] >= max_spread:
+            return None
+        # Top-3 也撞顶 → 升级 event
+        top3_collision = (
+            len(scores) >= 3
+            and lo <= scores[2] <= hi
+            and scores[0] - scores[2] < max_spread
+        )
+        return {
+            "event": "top_band_collision" if top3_collision else "top2_collision",
+            "top_scores": scores,
+            "spread_top1_top2": round(scores[0] - scores[1], 4),
+            "band": [lo, hi],
+        }
 
     def _global_model_checks(self, type_code: str, summary: dict[str, dict[str, float]]) -> tuple[float, list[str], list[str]]:
         meta = self.model_a[type_code]
@@ -1295,6 +1338,50 @@ class Kernel1Analyzer:
     def _positions_reverse(self, model_a: list[str]) -> dict[int, str]:
         return {int(slot[0]): slot[1:] for slot in model_a}
 
+    def _calibrate_confidence(
+        self,
+        top: dict[str, Any],
+        status: str,
+        saturation_event: dict[str, Any] | None,
+        partial_recovered: bool,
+        arbitration_decision: str | None,
+    ) -> tuple[float, dict[str, Any]]:
+        """v0.10:把 top.score 转成「系统对最终 type 的可信度」。
+
+        规则:
+          - 撞顶触发 → 强降至 saturation_confidence (0.4)
+          - arbitration_decision == "uncertain" → 强降至 saturation_confidence (0.4)
+          - status != "certain" → min(raw * 0.6, uncertain_confidence_cap)
+          - partial_recovered → 不超过 partial_recovered_cap (0.74)
+          - 否则 → raw
+        多条件叠加时取最严格(最低)结果,reason 串联记录。
+        """
+        raw = float(top.get("score") or 0.0)
+        confidence = raw
+        reasons: list[str] = []
+
+        if status != "certain":
+            capped = min(raw * 0.6, self.options.uncertain_confidence_cap)
+            if capped < confidence:
+                confidence = capped
+            reasons.append(f"status_{status}")
+        if saturation_event:
+            confidence = min(confidence, self.options.saturation_confidence)
+            reasons.append(f"saturation_{saturation_event.get('event', 'top_band')}")
+        if arbitration_decision == "uncertain":
+            confidence = min(confidence, self.options.saturation_confidence)
+            reasons.append("arbitration_uncertain")
+        if partial_recovered:
+            confidence = min(confidence, self.options.partial_recovered_cap)
+            reasons.append("partial_recovered")
+
+        if not reasons:
+            reasons.append("raw")
+        return round(confidence, 3), {
+            "raw_score": round(raw, 3),
+            "reason": "+".join(reasons),
+        }
+
     def _build_result(
         self,
         case_id: str,
@@ -1341,13 +1428,33 @@ class Kernel1Analyzer:
 
         type_code = top["type"] if status == "certain" else None
         meta = self.model_a.get(top["type"], {})
+        saturation_event = extraction.get("_saturation_event")
+        confidence, breakdown = self._calibrate_confidence(
+            top=top,
+            status=status,
+            saturation_event=saturation_event,
+            partial_recovered=partial_recovered,
+            arbitration_decision=None,
+        )
+        if saturation_event:
+            breakdown["saturation_event"] = saturation_event
+        algorithm_top_type = candidates[0]["type"] if candidates else None
+        algorithm_top_score = float(candidates[0].get("score") or 0.0) if candidates else 0.0
         return {
             "case_id": case_id,
             "status": status,
             "type": type_code,
             "alias": meta.get("alias") if type_code else None,
             "quadra": meta.get("quadra") if type_code else None,
-            "confidence": min(top["score"], 0.74) if partial_recovered else top["score"],
+            "confidence": confidence,
+            "confidence_breakdown": breakdown,
+            "algorithm_top": {"type": algorithm_top_type, "score": algorithm_top_score},
+            "stability_hint": {
+                "algorithm_top": algorithm_top_type,
+                "synthesis_verdict": None,
+                "coherence": None,
+                "consistent": None,  # 未运行 synthesis → 未知
+            },
             "candidates": candidates[:3],
             "candidate_explanations": self._explain_candidates(candidates[:3], extraction),
             "model_a": meta.get("model_a", []) if type_code else [],
@@ -1584,6 +1691,9 @@ class Kernel1Analyzer:
         if not isinstance(decision, dict) or "element_dimensions" not in decision:
             return None
 
+        # v0.10 C4: 多 4D 截断后处理(每人最多 2 个 4D 元素 + 最多 1 个 1D)
+        decision, demotion_notes = self._enforce_dimension_constraints(decision)
+
         # 用决策表重打标签
         element_dim_map: dict[str, str] = {}
         element_dim_rationale: dict[str, str] = {}
@@ -1611,12 +1721,18 @@ class Kernel1Analyzer:
         target_count = self._evidence_target_count(prepared)
         final_quotes = self._select_final_quotes(relabeled_quotes, target_count=target_count, prepared=prepared)
 
+        synthesis_notes = decision.get("synthesis_notes", "")
+        if demotion_notes:
+            joined = " / ".join(demotion_notes)
+            synthesis_notes = f"{synthesis_notes} [自动降维:{joined}]" if synthesis_notes else f"[自动降维:{joined}]"
+
         return {
             "quotes": final_quotes,
             "_source": "llm_synthesized",
             "_element_dimensions": element_dim_map,
             "_dimension_rationale": element_dim_rationale,
-            "_synthesis_notes": decision.get("synthesis_notes", ""),
+            "_synthesis_notes": synthesis_notes,
+            "_dimension_demotions": demotion_notes,
             "_raw_quote_count": len(raw_quotes),
             "_llm_error": raw_extraction.get("_llm_error"),
             "_llm_raw_path": raw_extraction.get("_llm_raw_path"),
@@ -1625,6 +1741,67 @@ class Kernel1Analyzer:
             "conflicts": raw_extraction.get("conflicts", []),
             "insufficiency": raw_extraction.get("insufficiency", []),
         }
+
+    def _enforce_dimension_constraints(
+        self, decision: dict[str, Any]
+    ) -> tuple[dict[str, Any], list[str]]:
+        """v0.10 C4:对 element_dimensions 强制 Model A 约束。
+
+        - 4D 元素最多 max_4d_per_person 个(默认 2):>该数时按 vote_4d 降序保留 Top-K,余下降为 3D
+        - 1D 元素最多 1 个:>1 时按 vote_1d 降序保留最强,余下升为 2D
+        返回 (修订后的 decision, 降维说明列表)。
+        """
+        notes: list[str] = []
+        dims = decision.get("element_dimensions", {})
+        if not isinstance(dims, dict):
+            return decision, notes
+
+        # 4D 约束
+        max_4d = self.options.max_4d_per_person
+        four_d_entries = [
+            (elem, info) for elem, info in dims.items()
+            if isinstance(info, dict) and info.get("dimension") == "4D"
+        ]
+        if len(four_d_entries) > max_4d:
+            sorted_4d = sorted(
+                four_d_entries,
+                key=lambda kv: float(kv[1].get("vote_4d") or 0.0),
+                reverse=True,
+            )
+            keep = {elem for elem, _ in sorted_4d[:max_4d]}
+            for elem, info in sorted_4d[max_4d:]:
+                old = info.get("dimension")
+                new_info = dict(info)
+                new_info["dimension"] = "3D"
+                new_info["rationale"] = (
+                    f"{info.get('rationale', '')} | 自动降维:多 4D 违反 Model A 约束,按 vote_4d 降序保留 Top-{max_4d}"
+                ).strip(" |")
+                dims[elem] = new_info
+                notes.append(f"{elem} {old}→3D")
+
+        # 1D 约束(最多 1 个 1D)
+        one_d_entries = [
+            (elem, info) for elem, info in dims.items()
+            if isinstance(info, dict) and info.get("dimension") == "1D"
+        ]
+        if len(one_d_entries) > 1:
+            sorted_1d = sorted(
+                one_d_entries,
+                key=lambda kv: float(kv[1].get("vote_1d") or 0.0),
+                reverse=True,
+            )
+            for elem, info in sorted_1d[1:]:
+                old = info.get("dimension")
+                new_info = dict(info)
+                new_info["dimension"] = "2D"
+                new_info["rationale"] = (
+                    f"{info.get('rationale', '')} | 自动升维:多 1D 违反 Model A 约束,仅保留 vote_1d 最高者"
+                ).strip(" |")
+                dims[elem] = new_info
+                notes.append(f"{elem} {old}→2D")
+
+        decision["element_dimensions"] = dims
+        return decision, notes
 
     def _evidence_target_count(self, prepared: dict[str, Any]) -> int:
         if prepared.get("mode") == "qa_answers_only":
@@ -2010,9 +2187,15 @@ class Kernel1Analyzer:
         candidates: list[dict[str, Any]],
         synthesis: dict[str, Any] | None,
     ) -> dict[str, Any]:
-        """
-        三方仲裁：算法 top、赖宁决断（若有）、综合层（若有）。
-        直接修改 result 的 status/type/alias/quadra，并写入 synthesis_pass 和 arbitration 字段。
+        """v0.10:arbitration 降级为建议层,不再覆盖 type/candidates。
+
+        - synthesis 与算法 Top-1 一致 → arbitration 背书,decision="agree"。status 不变
+          (若已是 certain 则保留;若 uncertain 则保留 uncertain,confidence 不强降)。
+        - synthesis 与算法 Top-1 不一致 → decision 由置信度决定:
+            * coherence ≥ 0.75 且 verdict 在 top-3:decision="disagree_supported"
+            * 其他:decision="disagree_unsupported"
+          两种 disagree 都 → status 强制 uncertain。
+        无论如何,不再修改 result.type / result.candidates / alias / quadra。
         """
         if synthesis is None:
             result["synthesis_pass"] = None
@@ -2021,78 +2204,89 @@ class Kernel1Analyzer:
 
         result["synthesis_pass"] = synthesis
         verdict = synthesis.get("verdict_type")
-        coherence_conf = synthesis.get("coherence_confidence", 0.0)
+        coherence_conf = float(synthesis.get("coherence_confidence", 0.0) or 0.0)
 
         algo_top = candidates[0]["type"] if candidates else None
-        algo_second = candidates[1]["type"] if len(candidates) > 1 else None
+        algo_top_score = float(candidates[0].get("score") or 0.0) if candidates else 0.0
         algo_top3 = {c["type"] for c in candidates[:3]}
         laning_winner = result.get("laning_tiebreak", {})
         laning_type = laning_winner.get("winner", {}).get("type") if isinstance(laning_winner, dict) else None
 
-        voters = {
-            "algorithm": algo_top,
-            "laning": laning_type,
-            "synthesis": verdict,
-        }
-        decision = "uncertain"
-        reason = ""
-
-        if coherence_conf >= 0.75:
-            if verdict == algo_top:
-                decision = "certain"
-                reason = f"综合层高置信度（{coherence_conf:.2f}）背书算法 top {verdict}。"
-            elif verdict == algo_second:
-                # 综合层推翻算法排序：采纳 verdict
-                decision = "certain_synthesis_override"
-                reason = f"综合层高置信度（{coherence_conf:.2f}），推翻算法排序，采纳 {verdict} 而非算法 top {algo_top}。"
-            elif verdict not in algo_top3:
-                decision = "uncertain"
-                reason = f"综合层 verdict={verdict} 不在算法 top-3 内，不采信，维持不确定。"
-            else:
-                decision = "certain"
-                reason = f"综合层高置信度（{coherence_conf:.2f}），verdict={verdict} 在 top-3 内，采纳。"
-        elif 0.5 <= coherence_conf < 0.75:
-            if verdict == algo_top:
-                decision = "certain"
-                reason = f"综合层弱背书（{coherence_conf:.2f}）与算法一致，合并确定为 {verdict}。"
-            else:
-                decision = "uncertain"
-                reason = f"综合层置信度 {coherence_conf:.2f} 不足且与算法分歧，维持不确定。"
+        agrees = (verdict == algo_top) and verdict is not None
+        if agrees:
+            decision = "agree"
+            reason = f"综合层 verdict={verdict} 与算法 Top-1 一致,置信度 {coherence_conf:.2f}。"
         else:
-            decision = "uncertain"
-            reason = f"综合层置信度 {coherence_conf:.2f} 过低，不采信。"
+            if coherence_conf >= 0.75 and verdict in algo_top3:
+                decision = "disagree_supported"
+                reason = (
+                    f"综合层高置信度({coherence_conf:.2f})推荐 {verdict},"
+                    f"与算法 Top-1={algo_top} 分歧,但 {verdict} 在算法 top-3 内。"
+                )
+            elif coherence_conf >= 0.75 and verdict not in algo_top3:
+                decision = "disagree_unsupported"
+                reason = (
+                    f"综合层 verdict={verdict} 不在算法 top-3 内,无法采信,"
+                    f"与算法 Top-1={algo_top} 分歧。"
+                )
+            else:
+                decision = "disagree_unsupported"
+                reason = (
+                    f"综合层置信度 {coherence_conf:.2f} 不足 0.75,verdict={verdict} 与算法 Top-1={algo_top} 分歧。"
+                )
 
-        if "Recovered partial JSON" in str(result.get("llm_error") or "") and decision in {"certain", "certain_synthesis_override"}:
-            decision = "uncertain"
-            reason = "初始抽取来自截断 JSON 恢复，禁止 L2 仲裁直接确定类型。"
+        result["arbitration"] = {
+            "suggested_type": verdict,
+            "decision": decision,
+            "reason": reason,
+            "agrees_with_algorithm": agrees,
+            "voters": {
+                "algorithm": algo_top,
+                "laning": laning_type,
+                "synthesis": verdict,
+            },
+        }
+        result["algorithm_top"] = {"type": algo_top, "score": algo_top_score}
 
-        result["arbitration"] = {"voters": voters, "decision": decision, "reason": reason}
+        # v0.10 C5: stability_hint
+        coherence_ok = coherence_conf >= 0.75
+        consistent = bool(agrees and coherence_ok)
+        result["stability_hint"] = {
+            "algorithm_top": algo_top,
+            "synthesis_verdict": verdict,
+            "coherence": round(coherence_conf, 3),
+            "consistent": consistent,
+        }
 
-        if decision in {"certain", "certain_synthesis_override"}:
-            final_type = verdict  # decision ∈ {certain, certain_synthesis_override} 时 verdict 即结论
-            meta = self.model_a.get(final_type, {})
-            result["status"] = "certain"
-            result["type"] = final_type
-            result["alias"] = meta.get("alias")
-            result["quadra"] = meta.get("quadra")
-            result["model_a"] = meta.get("model_a", [])
+        # 不一致 / coherence 过低 强制 uncertain
+        if (not consistent) and result.get("status") == "certain":
+            result["status"] = "uncertain"
+            result["type"] = None
+            result["alias"] = None
+            result["quadra"] = None
+            result["model_a"] = []
 
-            # 重排 candidates 把 verdict 提到首位，同步更新 confidence 和 explanations
-            candidates_list = result.get("candidates", [])
-            verdict_idx = next((i for i, c in enumerate(candidates_list) if c["type"] == verdict), None)
-            if verdict_idx is not None and verdict_idx != 0:
-                verdict_cand = candidates_list.pop(verdict_idx)
-                candidates_list.insert(0, verdict_cand)
-                result["candidates"] = candidates_list
-                result["confidence"] = verdict_cand.get("score", result.get("confidence"))
-                explanations = result.get("candidate_explanations", [])
-                exp_idx = next((i for i, e in enumerate(explanations) if e["type"] == verdict), None)
-                if exp_idx is not None and exp_idx != 0:
-                    verdict_exp = explanations.pop(exp_idx)
-                    explanations.insert(0, verdict_exp)
-                    result["candidate_explanations"] = explanations
-
+        # 重新校准 confidence(以最新 status + arbitration decision 为准)
+        top_after = result.get("candidates", [{"type": None, "score": 0.0}])[0]
+        partial_recovered = "partial_recovered" in str(result.get("confidence_breakdown", {}).get("reason", "")) or (
+            "Recovered partial JSON" in str(result.get("llm_error") or "")
+        )
+        saturation_event = result.get("confidence_breakdown", {}).get("saturation_event")
+        # arbitration 的 disagree 等价于旧的 uncertain decision,触发 confidence 强降
+        arbitration_decision_for_calib = "uncertain" if decision.startswith("disagree") else "agree"
+        new_conf, new_breakdown = self._calibrate_confidence(
+            top=top_after,
+            status=result.get("status", "uncertain"),
+            saturation_event=saturation_event,
+            partial_recovered=partial_recovered,
+            arbitration_decision=arbitration_decision_for_calib,
+        )
+        if saturation_event:
+            new_breakdown["saturation_event"] = saturation_event
+        result["confidence"] = new_conf
+        result["confidence_breakdown"] = new_breakdown
         return result
+
 
     def _generate_clarification(
         self,

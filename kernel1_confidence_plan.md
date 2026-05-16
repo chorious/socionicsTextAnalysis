@@ -2,6 +2,25 @@
 
 > 由 Opus 4.7 评估并设计。Sonnet 执行时按【推荐执行顺序】逐 commit 完成，每条都标了具体文件 + 行号 + 验证手段。
 
+---
+
+## ⚠️ 2026-05-16 状态:v0.9 落地后实测失真 → v0.10 已回炉
+
+v0.9(本文 7 个 commit A-G)已落地,但当晚接本地 LLM 实测发现:`confidence` 已不再反映「系统对判型多确定」,仅反映「有多少强 4D 信号」。同一份 25 题 QA 跑两次出 ILE certain / null clarifying 两种结果,confidence 都显示 1.0。
+
+**v0.10 已通过另一份计划 `luminous-soaring-toast.md` 完成回炉:**
+
+- 重新定义 `confidence` 语义(系统给出 type 的可信度,非 raw score)
+- 撞顶检测 `_detect_saturation` + `confidence_breakdown.saturation_event`
+- arbitration 降级为建议层(`agrees_with_algorithm` + `suggested_type`)
+- element_dimensions 多 4D 截断(`_enforce_dimension_constraints`)
+- 回归 fixture(`web-1778907758325.json` + `web-1778908013096.json`)
+- 新增字段:`algorithm_top`、`stability_hint`、`confidence_breakdown`、`arbitration.suggested_type`
+
+详见 `docs/kernel1/v0.10-confidence-semantics.md` + `journal/2026-05-16.md`。本文 v0.9 内容保留作为历史背景,**不要按本文 Commit E 的 `confidence ≥ 0.80` 作为新的验收门槛** — 那个口径在 v0.10 已重定义。
+
+---
+
 ## 1. 背景与目标
 
 `D:\guCodex\shiroProject\kernel1` 是 Socionics 单次判型 MVP。当前痛点：

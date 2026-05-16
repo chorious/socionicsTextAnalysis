@@ -33,6 +33,8 @@
 - element_dimensions 的 key 只能是 Ne/Ni/Se/Si/Te/Ti/Fe/Fi
 - dimension 只能是 1D/2D/3D/4D
 - vote_3d / vote_4d 等是数字（可为 0）
+- **每人最多 2 个 4D 元素**（Model A 的 1 号位主导 + 8 号位演示）。如果有 3 个及以上元素的证据都看似 4D，按证据强度（vote_4d）保留 Top-2，其余强制降为 3D。Socionics 理论禁止一个人同时拥有 3 个 4D 维度的元素。
+- **每人最多 1 个 1D 元素**（Model A 的 4 号位薄弱）。若多个元素都被判 1D，仅保留证据最强的那个为 1D，其余应升为 2D。
 
 最小合法示例：
 
