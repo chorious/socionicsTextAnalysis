@@ -6,15 +6,17 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi import Request, Response
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .core import Kernel1Analyzer
+from .core import AnalyzeOptions, Kernel1Analyzer
 from .llm import LLMClient, LLMConfig
 
 
 app = FastAPI(title="Shiro Kernel1 MVP", version="0.1.0")
 analyzer = Kernel1Analyzer()
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.middleware("http")
@@ -46,6 +48,7 @@ class AnalyzeRequest(BaseModel):
     llm_api_key: str | None = None
     llm_timeout: int = 90
     llm_max_tokens: int = 4096
+    ref_cards: str | None = None
 
 
 class ParseQARequest(BaseModel):
@@ -62,6 +65,18 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/kernel1/list-refcards")
+def list_ref_cards() -> dict[str, Any]:
+    """Return the list of available reference card filenames under prompts/."""
+    files = Kernel1Analyzer.list_ref_cards()
+    default = (
+        "reference_cards_socionics.md"
+        if "reference_cards_socionics.md" in files
+        else "reference_cards.md"
+    )
+    return {"files": files, "default": default}
+
+
 @app.post("/kernel1/parse-qa")
 def parse_qa(request: ParseQARequest) -> dict[str, Any]:
     return analyzer.parse_qa(request.text)
@@ -71,10 +86,21 @@ def parse_qa(request: ParseQARequest) -> dict[str, Any]:
 def analyze(request: AnalyzeRequest) -> dict[str, Any]:
     options = request.options or {}
     llm_enabled = bool(options.get("llm_enabled", request.llm_enabled))
-    if not llm_enabled:
+    ref_cards = options.get("ref_cards") or request.ref_cards
+    needs_custom_options = bool(ref_cards)
+
+    if not llm_enabled and not needs_custom_options:
         if request.qa_items:
             return analyzer.analyze_qa(qa_items=request.qa_items, case_id=request.case_id)
         return analyzer.analyze(text=request.text, case_id=request.case_id)
+
+    analyze_options = AnalyzeOptions(ref_cards_filename=ref_cards) if needs_custom_options else None
+
+    if not llm_enabled:
+        request_analyzer = Kernel1Analyzer(options=analyze_options)
+        if request.qa_items:
+            return request_analyzer.analyze_qa(qa_items=request.qa_items, case_id=request.case_id)
+        return request_analyzer.analyze(text=request.text, case_id=request.case_id)
 
     defaults = LLMConfig()
     config = LLMConfig(
@@ -85,7 +111,7 @@ def analyze(request: AnalyzeRequest) -> dict[str, Any]:
         timeout=int(options.get("llm_timeout") or request.llm_timeout or defaults.timeout),
         max_tokens=int(options.get("llm_max_tokens") or request.llm_max_tokens or defaults.max_tokens),
     )
-    request_analyzer = Kernel1Analyzer(llm=LLMClient(config))
+    request_analyzer = Kernel1Analyzer(llm=LLMClient(config), options=analyze_options)
     if request.qa_items:
         return request_analyzer.analyze_qa(qa_items=request.qa_items, case_id=request.case_id)
     return request_analyzer.analyze(text=request.text, case_id=request.case_id)

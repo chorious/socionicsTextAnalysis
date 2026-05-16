@@ -297,6 +297,7 @@
       .topbar { align-items: flex-start; flex-direction: column; }
     }
   </style>
+  <script src="/static/marked.min.js"></script>
 </head>
 <body>
   <div class="shell">
@@ -346,6 +347,13 @@
           </label>
 
           <label>
+            参考字典(reference_cards)
+            <select id="refCards" spellcheck="false">
+              <option value="">默认 (reference_cards.md)</option>
+            </select>
+          </label>
+
+          <label>
             文章 / 自述文本
             <textarea id="articleText" placeholder="把 3-5k 字文本粘到这里。第一版会返回候选类型、证据链、判型状态和报告。"></textarea>
           </label>
@@ -372,8 +380,10 @@
         <div class="meta">
           <div class="metric"><span>判型状态</span><strong id="mStatus">-</strong></div>
           <div class="metric"><span>候选第一</span><strong id="mTop">-</strong></div>
-          <div class="metric"><span>置信度</span><strong id="mConfidence">-</strong></div>
+          <div class="metric"><span>置信度</span><strong id="mConfBadge">-</strong></div>
+          <div class="metric"><span>IND 命中率</span><strong id="mHitBadge">-</strong></div>
           <div class="metric"><span>证据来源</span><strong id="mSource">-</strong></div>
+          <div class="metric"><span>参考字典</span><strong id="mRefCards">-</strong></div>
           <div class="metric wide"><span>LLM 状态</span><strong id="mLlm">-</strong></div>
         </div>
         <div class="tabs">
@@ -414,6 +424,10 @@
         $("llmTimeout").value = settings.llmTimeout || $("llmTimeout").value;
         $("llmMaxTokens").value = settings.llmMaxTokens || $("llmMaxTokens").value;
         $("llmApiKey").value = settings.llmApiKey ?? $("llmApiKey").value;
+        if (settings.refCards !== undefined) {
+          // Will be applied after loadRefCards populates the dropdown
+          window._savedRefCards = settings.refCards;
+        }
       } catch {
         localStorage.removeItem(settingsKey);
       }
@@ -426,9 +440,39 @@
         llmModel: $("llmModel").value.trim(),
         llmTimeout: Number($("llmTimeout").value || 90),
         llmMaxTokens: Number($("llmMaxTokens").value || 4096),
-        llmApiKey: $("llmApiKey").value
+        llmApiKey: $("llmApiKey").value,
+        refCards: $("refCards").value || ""
       };
       localStorage.setItem(settingsKey, JSON.stringify(settings));
+    }
+
+    async function loadRefCards() {
+      try {
+        const res = await fetch("/kernel1/list-refcards");
+        const data = await res.json();
+        const select = $("refCards");
+        const current = select.value;
+        select.innerHTML = "";
+        const defaultOpt = document.createElement("option");
+        defaultOpt.value = "";
+        defaultOpt.textContent = `默认 (${data.default || "reference_cards.md"})`;
+        select.appendChild(defaultOpt);
+        (data.files || []).forEach((name) => {
+          if (name === (data.default || "reference_cards.md")) return;
+          const opt = document.createElement("option");
+          opt.value = name;
+          opt.textContent = name;
+          select.appendChild(opt);
+        });
+        const saved = window._savedRefCards;
+        if (saved !== undefined) {
+          select.value = saved;
+        } else if (current) {
+          select.value = current;
+        }
+      } catch (err) {
+        // Network or server error — leave default option only
+      }
     }
 
     function setTab(name) {
@@ -443,8 +487,20 @@
       const top = data.candidates && data.candidates[0];
       $("mStatus").textContent = data.status || "-";
       $("mTop").textContent = top ? `${top.type} (${top.score})` : "-";
-      $("mConfidence").textContent = data.confidence ?? "-";
+
+      const conf = Number(data.confidence ?? 0);
+      const target = 0.80;
+      const confBadge = $("mConfBadge");
+      confBadge.textContent = `${conf.toFixed(3)} (目标 ≥ ${target})`;
+      confBadge.style.color = conf >= target ? "#0a0" : (conf >= 0.65 ? "#c80" : "#c00");
+
+      const hit = Number(data.preprocess?.indicator_hit_rate ?? 0);
+      const hitBadge = $("mHitBadge");
+      hitBadge.textContent = `${(hit * 100).toFixed(0)}% (目标 ≥ 70%)`;
+      hitBadge.style.color = hit >= 0.7 ? "#0a0" : (hit >= 0.4 ? "#c80" : "#c00");
+
       $("mSource").textContent = data.extraction_source || "-";
+      $("mRefCards").textContent = data.preprocess?.ref_cards || "-";
       const raw = data.llm_raw_path ? `；原始回复：${data.llm_raw_path}` : "";
       $("mLlm").textContent = data.llm_error ? `失败：${data.llm_error}${raw}` : (data.extraction_source === "llm" ? "已使用本地 LLM" : "-");
     }
@@ -490,7 +546,8 @@
         llm_model: $("llmModel").value.trim(),
         llm_api_key: $("llmApiKey").value,
         llm_timeout: Number($("llmTimeout").value || 90),
-        llm_max_tokens: Number($("llmMaxTokens").value || 4096)
+        llm_max_tokens: Number($("llmMaxTokens").value || 4096),
+        ref_cards: $("refCards").value || null
       };
       saveSettings();
 
@@ -503,7 +560,15 @@
         const data = await res.json();
         if (!res.ok) throw new Error(JSON.stringify(data));
         setMetrics(data);
-        $("reportView").textContent = data.report || "没有报告内容。";
+        if (data.report) {
+          if (typeof marked !== "undefined") {
+            $("reportView").innerHTML = marked.parse(data.report);
+          } else {
+            $("reportView").textContent = data.report;
+          }
+        } else {
+          $("reportView").textContent = "没有报告内容。";
+        }
         $("jsonView").textContent = JSON.stringify(data, null, 2);
         $("runStatus").textContent = "完成";
       } catch (err) {
@@ -563,7 +628,7 @@
     }
 
     $("articleText").addEventListener("input", updateCount);
-    ["llmEnabled", "llmBaseUrl", "llmModel", "llmTimeout", "llmMaxTokens", "llmApiKey"].forEach((id) => {
+    ["llmEnabled", "llmBaseUrl", "llmModel", "llmTimeout", "llmMaxTokens", "llmApiKey", "refCards"].forEach((id) => {
       $(id).addEventListener("change", saveSettings);
       $(id).addEventListener("input", saveSettings);
     });
@@ -588,6 +653,7 @@
     loadSettings();
     updateCount();
     checkHealth();
+    loadRefCards();
   </script>
 </body>
 </html>
