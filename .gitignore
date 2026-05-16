@@ -8,3 +8,5 @@ kernel1/outputs/
 .env
 .venv/
 venv/
+
+journal/
